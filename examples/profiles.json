@@ -1,0 +1,5 @@
+[
+  {"name": "baseline"},
+  {"name": "explicit-locale", "env": {"LANG": "C.UTF-8"}},
+  {"name": "bounded", "timeout_seconds": 10}
+]

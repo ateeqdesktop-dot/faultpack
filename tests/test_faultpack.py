@@ -172,14 +172,14 @@ def test_reduce_text_input_preserves_failure_oracle(tmp_path: Path) -> None:
 
 
 def test_reports_and_cli(tmp_path: Path) -> None:
-    assert VERSION == "1.0.0"
+    assert VERSION == "1.1.0"
     assert "REPRODUCED" in markdown_report("p", True, [], "passed", 0, 3)
     assert "not a sandbox" in markdown_report("p", True, [], "passed", 0, 3)
     assert len(sarif_report(False, ["bad"])["runs"][0]["results"]) == 1
     assert "testsuite" in junit_report(True, [], 3)
     runner = CliRunner()
     result = runner.invoke(app, ["version"])
-    assert result.exit_code == 0 and "1.0.0" in result.stdout
+    assert result.exit_code == 0 and "1.1.0" in result.stdout
     out = tmp_path / "cli-pack"
     result = runner.invoke(
         app,

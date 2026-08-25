@@ -19,6 +19,10 @@ inputs:
     description: Path to a PEM Ed25519 public key used to verify signature.ed25519
     required: false
     default: ''
+  profiles:
+    description: Optional JSON array of replay matrix profiles
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -36,13 +40,21 @@ runs:
         faultpack verify "${{ inputs.pack }}" \
           ${{ inputs.require-signature == 'true' && '--require-signature' || '' }} \
           ${{ inputs.public-key != '' && format('--public-key {0}', inputs.public-key) || '' }}
-    - name: Replay pack
+    - name: Replay pack or matrix
       shell: bash
       run: |
-        faultpack replay "${{ inputs.pack }}" \
-          --report-dir "${{ inputs.report-dir }}" \
-          ${{ inputs.require-signature == 'true' && '--require-signature' || '' }} \
-          ${{ inputs.public-key != '' && format('--public-key {0}', inputs.public-key) || '' }}
+        if [[ -n "${{ inputs.profiles }}" ]]; then
+          faultpack matrix "${{ inputs.pack }}" \
+            --profiles "${{ inputs.profiles }}" \
+            --report-dir "${{ inputs.report-dir }}" \
+            ${{ inputs.require-signature == 'true' && '--require-signature' || '' }} \
+            ${{ inputs.public-key != '' && format('--public-key {0}', inputs.public-key) || '' }}
+        else
+          faultpack replay "${{ inputs.pack }}" \
+            --report-dir "${{ inputs.report-dir }}" \
+            ${{ inputs.require-signature == 'true' && '--require-signature' || '' }} \
+            ${{ inputs.public-key != '' && format('--public-key {0}', inputs.public-key) || '' }}
+        fi
     - name: Upload reports
       if: always()
       uses: actions/upload-artifact@v4

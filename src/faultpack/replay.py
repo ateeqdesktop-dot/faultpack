@@ -14,6 +14,10 @@ def replay(
     pack_dir: Path,
     manifest: Manifest,
     workspace: Path | None = None,
+    *,
+    argv: list[str] | None = None,
+    timeout_seconds: float | None = None,
+    env_overrides: dict[str, str] | None = None,
 ) -> tuple[str, int | None, int, str, str]:
     if workspace is None:
         owns_workspace = True
@@ -35,12 +39,15 @@ def replay(
         start = time.monotonic()
         try:
             proc = subprocess.run(
-                manifest.command.argv,
+                argv or manifest.command.argv,
                 cwd=cwd,
-                env=execution_environment(manifest.command.env_allowlist),
+                env=execution_environment(
+                    manifest.command.env_allowlist,
+                    overrides=env_overrides,
+                ),
                 capture_output=True,
                 text=True,
-                timeout=manifest.command.timeout_seconds,
+                timeout=timeout_seconds or manifest.command.timeout_seconds,
                 check=False,
             )
             status = "passed" if proc.returncode == 0 else "failed"

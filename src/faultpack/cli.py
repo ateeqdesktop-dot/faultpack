@@ -8,13 +8,15 @@ import typer
 
 from .core import FaultPackError, verify_pack
 from .diff import diff_observations, observe
+from .matrix import run_matrix, write_matrix_reports
+from .models import MatrixProfile
 from .pack import capture_pack, write_zip
 from .reducer import reduce_text_input
 from .replay import compare, replay
 from .report import junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -109,9 +111,7 @@ def replay_cmd(
 ) -> None:
     """Replay a verified pack and emit Markdown, SARIF, and JUnit reports."""
     try:
-        manifest = verify_pack(
-            pack, require_signature=require_signature, public_key=public_key
-        )
+        manifest = verify_pack(pack, require_signature=require_signature, public_key=public_key)
         status, code, duration, stdout, stderr = replay(pack, manifest)
         reasons = compare(manifest, status, code, duration, stdout, stderr)
     except (FaultPackError, OSError) as exc:
@@ -167,6 +167,33 @@ def diff(
         write_json(output, result)
     typer.echo(json.dumps(result, ensure_ascii=False))
     raise typer.Exit(0 if result["identical_behavior"] else 5)
+
+
+@app.command("matrix")
+def matrix(
+    pack: Annotated[Path, typer.Argument(exists=True)],
+    profiles: Annotated[
+        Path, typer.Option("--profiles", help="JSON file containing an array of profiles")
+    ],
+    report_dir: Annotated[Path | None, typer.Option("--report-dir")] = None,
+    require_signature: Annotated[bool, typer.Option("--require-signature")] = False,
+    public_key: Annotated[Path | None, typer.Option("--public-key")] = None,
+) -> None:
+    """Replay one verified pack across ordered, bounded local profiles."""
+    try:
+        manifest = verify_pack(pack, require_signature=require_signature, public_key=public_key)
+        raw_profiles = json.loads(profiles.read_text(encoding="utf-8"))
+        if not isinstance(raw_profiles, list):
+            raise ValueError("profiles JSON must contain an array")
+        parsed = [MatrixProfile.model_validate(item) for item in raw_profiles]
+        payload = run_matrix(pack, manifest, parsed)
+        if report_dir:
+            write_matrix_reports(report_dir, payload)
+    except (FaultPackError, OSError, ValueError, json.JSONDecodeError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False))
+    raise typer.Exit(0 if payload["all_reproduced"] else 5)
 
 
 @app.command("bundle")

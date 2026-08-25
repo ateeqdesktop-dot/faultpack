@@ -77,6 +77,43 @@ class Expectation(BaseModel):
     duration_max_ms: int | None = Field(default=None, ge=0)
 
 
+class MatrixProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+    env: dict[str, str] = Field(default_factory=dict)
+    argv: list[str] | None = None
+    timeout_seconds: float | None = Field(default=None, gt=0, le=3600)
+
+    @field_validator("env")
+    @classmethod
+    def safe_environment_names(cls, value: dict[str, str]) -> dict[str, str]:
+        for name in value:
+            valid_name = name and name.replace("_", "A").isalnum()
+            starts_correctly = name[:1].isalpha() or name[:1] == "_"
+            if not valid_name or not starts_correctly:
+                raise ValueError(f"invalid environment variable name: {name}")
+        return value
+
+    @field_validator("argv")
+    @classmethod
+    def non_empty_argv(cls, value: list[str] | None) -> list[str] | None:
+        if value is not None and not value:
+            raise ValueError("argv override cannot be empty")
+        return value
+
+
+class MatrixResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile: str
+    outcome: Literal["reproduced", "mismatch", "execution_error"]
+    status: Literal["passed", "failed", "timeout", "error"]
+    exit_code: int | None = None
+    duration_ms: int = Field(ge=0)
+    reasons: list[str] = Field(default_factory=list)
+
+
 class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

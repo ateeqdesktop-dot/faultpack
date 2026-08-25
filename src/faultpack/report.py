@@ -51,7 +51,7 @@ def sarif_report(
         "version": "2.1.0",
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "runs": [
-            {"tool": {"driver": {"name": "FaultPack", "version": "0.2.0"}}, "results": results}
+            {"tool": {"driver": {"name": "FaultPack", "version": "1.1.0"}}, "results": results}
         ],
     }
 

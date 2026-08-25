@@ -2,6 +2,26 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.1.0] — Replay matrix
+
+### Added
+
+- Added typed `MatrixProfile` and `MatrixResult` contracts with strict profile names, safe environment keys, optional tokenized argv overrides, and bounded timeout narrowing.
+- Added `faultpack matrix PACK --profiles profiles.json` for ordered, isolated, local replay across multiple profiles.
+- Added aggregate JSON output plus Markdown, SARIF, and JUnit matrix reports.
+- Added matrix support to the composite GitHub Action through the optional `profiles` input.
+- Added deterministic matrix fixtures and focused tests for success, mismatch, duplicate profiles, unsafe policy, and execution errors.
+- Added `docs/architecture-v1.1.md` and `examples/profiles.json`.
+
+### Compatibility and safety
+
+- Existing v0.1/v0.2 pack formats and commands remain readable and unchanged.
+- Matrix execution never mutates the source pack and does not invoke a shell for argv overrides.
+- Profile timeouts may narrow but never expand the pack timeout.
+- FaultPack remains local-first, passive during verification, and explicit that replay is not a sandbox.
+
+[1.1.0]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.1.0
+
 ## [1.0.0] — 2026-08-25
 
 ### Added

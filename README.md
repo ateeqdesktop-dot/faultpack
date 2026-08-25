@@ -1,6 +1,6 @@
-# FaultPack
+[![CI](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml/badge.svg)](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml) [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-[![CI](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml/badge.svg)](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+# FaultPack
 
 **FaultPack turns an opaque failure into a portable, privacy-preserving, verifiable experiment that another machine can reproduce, compare, and trust.**
 
@@ -29,6 +29,8 @@ The project is an evidence layer, not an observability platform. It complements 
 | **Bounded reduction** | Line-oriented delta debugging that accepts a candidate only while the declared failure oracle remains true. |
 | **CI reports** | JSON, Markdown, SARIF, JUnit XML, deterministic ZIP bundles, and a reusable GitHub Action. |
 | **Detached Ed25519 signing** | Optional interoperable signatures over the logical fingerprint, verified with an explicit public key. |
+| **Replay matrix** | Run the same verified failure across ordered, bounded local profiles and aggregate reproducibility results. |
+| **Adapter-ready contract** | Language-neutral manifests let pytest, Jest, Go, and other producers share the same evidence layer. |
 
 ## Quick start
 
@@ -64,6 +66,26 @@ faultpack verify ./signed-pack \
 ```
 
 The signature covers the canonical logical fingerprint, not a mutable path or a human-readable signer label. The verifier does not discover trust roots, fetch keys, or execute pack content.
+
+## Replay matrix
+
+A matrix answers a maintainer’s practical question: **does this failure reproduce under every declared local profile?** Profiles are a JSON array. They may narrow the timeout, override argv as tokens (never a shell string), or add explicitly named environment variables. The runner verifies the pack once, uses a fresh workspace per profile, preserves declaration order, and emits one result per profile.
+
+```json
+[
+  {"name": "baseline"},
+  {"name": "feature-flag", "env": {"FEATURE_FLAG": "on"}},
+  {"name": "alternate-command", "argv": ["python", "-m", "myapp.reproduce"]}
+]
+```
+
+```bash
+faultpack matrix ./pack --profiles ./profiles.json --report-dir ./matrix-report
+```
+
+The matrix exits `0` only when every profile reproduces the oracle. A valid mismatch exits `5`; an invalid pack or unsafe profile exits `4`. Reports are `faultpack-matrix.json` and `faultpack-matrix.md`. Matrix timing is diagnostic only and never presented as causal proof.
+
+The composite Action supports the same mode by passing `profiles: profiles.json`; omitting it keeps the original single-pack replay behavior.
 
 ## Differential replay
 
@@ -159,7 +181,7 @@ CLI / GitHub Action
 
 The domain layer is independent from Typer. `models.py` owns the schema contract, `core.py` owns canonicalization and verification, `pack.py` owns capture and deterministic packaging, `replay.py` owns execution and oracle comparison, `diff.py` owns behavioral comparison, `reducer.py` owns bounded minimization, `report.py` owns output formats, and `signing.py` owns optional Ed25519 interoperability.
 
-See [`docs/v1-design.md`](docs/v1-design.md) for the product vision, data flow, error semantics, security model, performance strategy, extensibility plan, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
+See [`docs/v1-design.md`](docs/v1-design.md) for the original product contract, and [`docs/architecture-v1.1.md`](docs/architecture-v1.1.md) for the matrix architecture, security model, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
 
 ## Development
 
@@ -175,7 +197,7 @@ Behavior changes must include focused tests and a contract note. Fixtures must b
 
 ## Roadmap
 
-FaultPack v1.0 provides the complete local evidence workflow. v1.1 will focus on pytest/Jest/Go adapters and replay matrices. v1.2 can add OCI/Podman backends and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
+FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. v1.2 can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
 
 ## License
 

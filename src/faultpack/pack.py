@@ -24,10 +24,13 @@ _DEFAULT_ENV = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
 
 
 def execution_environment(
-    allowlist: list[str], extra_patterns: list[str] | None = None
+    allowlist: list[str],
+    extra_patterns: list[str] | None = None,
+    overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    names = list(dict.fromkeys([*_DEFAULT_ENV, *allowlist]))
+    names = list(dict.fromkeys([*_DEFAULT_ENV, *allowlist, *(overrides or {}).keys()]))
     values = {name: os.environ[name] for name in names if name in os.environ}
+    values.update(overrides or {})
     return redact_environment(values, extra_patterns)
 
 
