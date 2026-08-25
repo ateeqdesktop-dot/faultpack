@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import platform
 import shutil
@@ -11,9 +9,19 @@ import zipfile
 from pathlib import Path
 from typing import Literal
 
-from .core import canonical_json, manifest_fingerprint, safe_pack_path, sha256_bytes
-from .models import CommandSpec, Environment, Expectation, Manifest, Observed, Source
+from .core import canonical_json, manifest_fingerprint, safe_pack_path, sha256_bytes, signature_for
+from .models import CommandSpec, Environment, Expectation, FileEntry, Manifest, Observed, Source
 from .redact import redact_environment, redact_value
+
+_DEFAULT_ENV = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
+
+
+def execution_environment(
+    allowlist: list[str], extra_patterns: list[str] | None = None
+) -> dict[str, str]:
+    names = list(dict.fromkeys([*_DEFAULT_ENV, *allowlist]))
+    values = {name: os.environ[name] for name in names if name in os.environ}
+    return redact_environment(values, extra_patterns)
 
 
 def _run(
@@ -21,54 +29,48 @@ def _run(
 ) -> tuple[Observed, bytes, bytes]:
     status: Literal["passed", "failed", "timeout", "error"]
     cwd = safe_pack_path(root, command.cwd) if command.cwd != "." else root.resolve()
-    env = {key: os.environ[key] for key in command.env_allowlist if key in os.environ}
-    env = redact_environment(env, extra_patterns)
-    # Redacted values are intentionally used for the child too; secrets never enter the pack.
+    env = execution_environment(command.env_allowlist, extra_patterns)
     start = time.monotonic()
     try:
         proc = subprocess.run(
             command.argv,
             cwd=cwd,
-            env={**os.environ, **env},
+            env=env,
             capture_output=True,
             timeout=command.timeout_seconds,
+            check=False,
         )
         status = "passed" if proc.returncode == 0 else "failed"
         code = proc.returncode
+        stdout = redact_value(proc.stdout.decode(errors="replace"), extra_patterns).encode()
+        stderr = redact_value(proc.stderr.decode(errors="replace"), extra_patterns).encode()
     except subprocess.TimeoutExpired as exc:
         status, code = "timeout", None
-        stdout = exc.stdout or b""
-        stderr = exc.stderr or b""
-        duration = int((time.monotonic() - start) * 1000)
-        return (
-            Observed(
-                status=status,
-                exit_code=code,
-                duration_ms=duration,
-                stdout_sha256=sha256_bytes(
-                    redact_value(stdout.decode(errors="replace"), extra_patterns).encode()
-                ),
-                stderr_sha256=sha256_bytes(
-                    redact_value(stderr.decode(errors="replace"), extra_patterns).encode()
-                ),
-            ),
-            redact_value(stdout.decode(errors="replace"), extra_patterns).encode(),
-            redact_value(stderr.decode(errors="replace"), extra_patterns).encode(),
-        )
+        stdout = redact_value((exc.stdout or b"").decode(errors="replace"), extra_patterns).encode()
+        stderr = redact_value((exc.stderr or b"").decode(errors="replace"), extra_patterns).encode()
+    except (OSError, ValueError) as exc:
+        status, code = "error", None
+        stdout = b""
+        stderr = redact_value(str(exc), extra_patterns).encode()
     duration = int((time.monotonic() - start) * 1000)
-    stdout = redact_value(proc.stdout.decode(errors="replace"), extra_patterns).encode()
-    stderr = redact_value(proc.stderr.decode(errors="replace"), extra_patterns).encode()
-    return (
-        Observed(
-            status=status,
-            exit_code=code,
-            duration_ms=duration,
-            stdout_sha256=sha256_bytes(stdout),
-            stderr_sha256=sha256_bytes(stderr),
-        ),
-        stdout,
-        stderr,
+    observed = Observed(
+        status=status,
+        exit_code=code,
+        duration_ms=duration,
+        stdout_sha256=sha256_bytes(stdout),
+        stderr_sha256=sha256_bytes(stderr),
     )
+    return observed, stdout, stderr
+
+
+def _copy_input(root: Path, out: Path, relative: str) -> FileEntry:
+    source = safe_pack_path(root, relative)
+    if not source.is_file():
+        raise OSError(f"input file does not exist: {relative}")
+    destination = safe_pack_path(out / "artifacts" / "inputs", relative)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    return FileEntry(path=relative, sha256=sha256_bytes(destination.read_bytes()))
 
 
 def capture_pack(
@@ -79,9 +81,29 @@ def capture_pack(
     timeout: float = 30.0,
     source: Source | None = None,
     extra_patterns: list[str] | None = None,
+    input_files: list[str] | None = None,
+    env_allowlist: list[str] | None = None,
 ) -> Manifest:
-    command = CommandSpec(argv=argv, cwd=cwd, timeout_seconds=timeout)
+    root = root.resolve()
+    if out.exists():
+        shutil.rmtree(out)
+    (out / "artifacts").mkdir(parents=True)
+    command = CommandSpec(
+        argv=argv,
+        cwd=cwd,
+        timeout_seconds=timeout,
+        env_allowlist=env_allowlist or [],
+    )
+    try:
+        entries = [_copy_input(root, out, relative) for relative in sorted(input_files or [])]
+    except OSError:
+        shutil.rmtree(out, ignore_errors=True)
+        raise
     observed, stdout, stderr = _run(command, root, extra_patterns)
+    selected_env = redact_environment(
+        {name: os.environ[name] for name in command.env_allowlist if name in os.environ},
+        extra_patterns,
+    )
     manifest = Manifest(
         pack_id=str(uuid.uuid4()),
         source=source or Source(),
@@ -90,18 +112,21 @@ def capture_pack(
             os=platform.system(),
             platform=platform.platform(),
             python=sys.version.split()[0],
-            variables=redact_environment({}),
+            variables=selected_env,
         ),
+        input_files=entries,
         observed=observed,
         expectation=Expectation(exit_code=observed.exit_code),
     )
     manifest = manifest.model_copy(update={"fingerprint": manifest_fingerprint(manifest)})
-    if out.exists():
-        shutil.rmtree(out)
-    (out / "artifacts").mkdir(parents=True)
     (out / "artifacts" / "stdout.txt").write_bytes(stdout)
     (out / "artifacts" / "stderr.txt").write_bytes(stderr)
     (out / "faultpack.json").write_bytes(canonical_json(manifest.model_dump(mode="json")))
+    signing_key = os.getenv("FAULTPACK_SIGNING_KEY")
+    if signing_key:
+        (out / "signature.hmac").write_text(
+            signature_for(manifest.fingerprint or "", signing_key) + "\n", encoding="ascii"
+        )
     return manifest
 
 
@@ -117,7 +142,6 @@ def write_zip(pack_dir: Path, destination: Path) -> None:
 
 
 def inspect_pack(pack_dir: Path) -> Manifest:
-    manifest = Manifest.model_validate_json(
-        (pack_dir / "faultpack.json").read_text(encoding="utf-8")
-    )
-    return manifest
+    from .core import load_manifest
+
+    return load_manifest(pack_dir / "faultpack.json")

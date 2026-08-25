@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "faultpack"
-version = "0.1.0"
+version = "0.2.0"
 description = "Portable, privacy-first, verifiable reproduction packs for software failures"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,7 +32,7 @@ packages = ["src/faultpack"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --cov=faultpack --cov-report=term-missing --cov-fail-under=85"
+addopts = "-q --cov=faultpack --cov-report=term-missing --cov-fail-under=90"
 
 [tool.ruff]
 line-length = 100

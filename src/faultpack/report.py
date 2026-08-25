@@ -22,6 +22,8 @@ def markdown_report(
         f"- Exit code: `{exit_code}`",
         f"- Duration: `{duration_ms} ms`",
         "",
+        "> Replay is bounded but is not a sandbox; use an isolated runner for untrusted packs.",
+        "",
     ]
     if reasons:
         lines += ["## Differences", ""] + [f"- {reason}" for reason in reasons]
@@ -49,7 +51,7 @@ def sarif_report(
         "version": "2.1.0",
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "runs": [
-            {"tool": {"driver": {"name": "FaultPack", "version": "0.1.0"}}, "results": results}
+            {"tool": {"driver": {"name": "FaultPack", "version": "0.2.0"}}, "results": results}
         ],
     }
 

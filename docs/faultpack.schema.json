@@ -3,17 +3,74 @@
   "$id": "https://github.com/ateeqdesktop-dot/faultpack/blob/main/docs/faultpack.schema.json",
   "title": "FaultPack manifest",
   "type": "object",
-  "required": ["format_version", "pack_id", "command", "environment", "observed", "expectation"],
+  "additionalProperties": false,
+  "required": ["format_version", "pack_id", "created_at", "source", "command", "environment", "input_files", "observed", "expectation", "fingerprint"],
   "properties": {
-    "format_version": {"const": "0.1"},
+    "format_version": {"type": "string", "enum": ["0.1", "0.2"]},
     "pack_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
-    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "command": {"type": "object", "required": ["argv", "cwd", "timeout_seconds"], "properties": {"argv": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "cwd": {"type": "string"}, "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}}},
-    "environment": {"type": "object", "required": ["os", "platform", "python"], "properties": {"os": {"type": "string"}, "platform": {"type": "string"}, "python": {"type": "string"}, "variables": {"type": "object"}}},
-    "input_files": {"type": "array", "items": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}},
-    "observed": {"type": "object", "required": ["status", "duration_ms", "stdout_sha256", "stderr_sha256"], "properties": {"status": {"enum": ["passed", "failed", "timeout", "error"]}, "exit_code": {"type": ["integer", "null"]}, "duration_ms": {"type": "integer", "minimum": 0}, "stdout_sha256": {"type": "string"}, "stderr_sha256": {"type": "string"}}},
-    "expectation": {"type": "object", "properties": {"exit_code": {"type": ["integer", "null"]}, "stdout_regex": {"type": ["string", "null"]}, "stderr_regex": {"type": ["string", "null"]}}}
-  },
-  "additionalProperties": false
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "repository": {"type": ["string", "null"]},
+        "commit": {"type": ["string", "null"]},
+        "branch": {"type": ["string", "null"]}
+      }
+    },
+    "command": {
+      "type": "object", "additionalProperties": false,
+      "required": ["argv", "cwd", "timeout_seconds", "env_allowlist"],
+      "properties": {
+        "argv": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "cwd": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).*$"},
+        "timeout_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 3600},
+        "env_allowlist": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["os", "platform", "python", "variables"],
+      "properties": {
+        "os": {"type": "string"},
+        "platform": {"type": "string"},
+        "python": {"type": "string"},
+        "variables": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "input_files": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "observed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "duration_ms", "stdout_path", "stderr_path", "stdout_sha256", "stderr_sha256"],
+      "properties": {
+        "status": {"type": "string", "enum": ["passed", "failed", "timeout", "error"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "stdout_path": {"type": "string"},
+        "stderr_path": {"type": "string"},
+        "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "expectation": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "exit_code": {"type": ["integer", "null"]},
+        "stdout_regex": {"type": ["string", "null"]},
+        "stderr_regex": {"type": ["string", "null"]},
+        "stdout_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "stderr_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "duration_max_ms": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
 }

@@ -1,55 +1,63 @@
-# FaultPack — Project Delivery Report
+# FaultPack v0.2 — Project Delivery Report
 
 ## Executive summary
 
-تم اختيار وبناء **FaultPack** بوصفه مشروعًا رئيسيًا يضيف تنوعًا هندسيًا حقيقيًا إلى حساب GitHub: أداة محلية وGitHub-native لتحويل فشل برمجي إلى حزمة إعادة إنتاج محمولة، منقحة الخصوصية، قابلة للتحقق وإعادة التشغيل. المستودع متاح الآن على [GitHub](https://github.com/ateeqdesktop-dot/faultpack)، والإصدار الأول منشور في [v0.1.0](https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v0.1.0).
+تم اختيار وتطوير **FaultPack** بوصفه المشروع الرئيسي الذي يضيف تنوعًا هندسيًا حقيقيًا إلى حساب GitHub. يحوّل FaultPack فشلًا برمجيًا إلى حزمة إعادة إنتاج محمولة، منقحة للخصوصية، قابلة للتحقق وإعادة التشغيل والتقليل، ومناسبة للاستهلاك داخل CI. استُخدم المستودع الموجود `ateeqdesktop-dot/faultpack` كنقطة انطلاق بدل إنشاء مشروع آخر متشابه.
+
+القرار يعالج مشكلة عملية: سجلات الفشل ولقطات الشاشة لا تمنح maintainer عقدًا قابلًا للتحقق يحدد revision والأمر والمدخلات والبيئة والسلوك المتوقع. FaultPack يقدّم هذا العقد كملفات عادية، من دون حساب مستضاف أو API key أو model call أو رفع ضمني.
 
 ## Account diagnosis
 
-يعرض الملف الشخصي هوية AI/ML وPython وNLP وComputer Vision، ويحتوي الحساب على 37 مستودعًا عامًا و0 متابعين وفق لقطة التدقيق. تحليل المستودعات الأصلية أظهر تركّزًا شديدًا في AI-agent governance وMCP وprovenance وevidence وquality gates. وفي المقابل، كان التمثيل الأضعف هو أدوات المطورين العامة، ومسارات صيانة Open Source ذات دورة استخدام واضحة، والمشاريع التي تخدم مطورين خارج نطاق AI.
+تضم قائمة الحساب المرصودة نحو 50 مستودعًا، منها 40 Python و8 TypeScript ومستودع Dart واحد. يتركز الحساب بقوة في AI-agent governance وMCP وprovenance وevidence وreplay وquality gates. توجد قدرة واضحة على بناء MVPs منظمة تحتوي على README وLICENSE وSECURITY وCONTRIBUTING واختبارات وGitHub Actions، لكن عددًا من المستودعات لا يتجاوز 1–3 التزامات، وكل المستودعات المرصودة بلا نجوم عامة وقت التدقيق. كما أن مستودع الملف الشخصي لا يحتوي README فعالًا.
 
-القوة الواضحة هي القدرة على بناء MVPs ذات اختبارات وCI وتوثيق واهتمام بالسلامة. الخطر هو تكرار الفكرة تحت أسماء متعددة، مع أعمار صغيرة للمستودعات وغياب traction عام حتى الآن. لذلك صُمم FaultPack ليعيد استخدام نقاط القوة الحالية في integrity وredaction وdeterminism، لكن في مشكلة أوسع وأكثر قابلية للاكتشاف.
+لهذا السبب تجنب المشروع الجديد تكرار MCP gateway أو trace ledger أو policy control plane أو agent replay harness. FaultPack يعيد استخدام نقاط القوة في integrity وredaction وdeterminism، لكنه ينقلها إلى أدوات مطورين عامة تخدم أعطال المشاريع حتى عندما لا يكون الذكاء الاصطناعي جزءًا من النظام.
 
 ## Research and competitive decision
 
-تبيّن المقارنة أن MCP Inspector مشروع ناضج للاختبار التفاعلي لـMCP، مع أكثر من 10 آلاف نجمة وبنية Web/CLI/TUI واسعة [1]. Phoenix منصة observability/evaluation كبيرة، مع tracing وdatasets وexperiments وprompt management [2]. Traccia يقدّم SDK قائمًا على OpenTelemetry للتتبع والتقييم والحوكمة [3]. أما Devtriage فيثبت قيمة التقاط الفشل وتوليد تقرير قابل للمشاركة، لكنه يظل CLI خفيفًا بعمق محدود [4]. ويقدم GitBug-Java benchmark بحثيًا لإعادات إنتاج أعطال Java، لا workflow عامًا للمشرفين [5].
+أظهر البحث أن ReproZip ناضج في التقاط system calls والاعتماديات لبناء حزم تجارب قابلة لإعادة التشغيل عبر chroot أو Vagrant أو Docker، مع تاريخ GitHub كبير ومجتمع قائم [1] [2]. rr قوي في record/replay منخفض المستوى وreverse debugging، لكنه يعتمد على متطلبات kernel وعتاد/VM محددة ولا يقدم عقد مشاركة عام لتذكرة فشل [3] [4]. BugZoo يوفر حاويات وواجهات CLI/Python/REST لدراسة أعطال تاريخية، بينما BugsInPy موجه إلى benchmark بحثي منظم لأعطال Python [5] [6]. LIBRO يثبت قيمة توليد اختبارات إعادة الإنتاج باستخدام LLM، لكنه replication package بحثي يتطلب Docker وبيئات وموارد أكبر [7].
 
-كما تؤكد دراسة حديثة حول provenance أن الأنظمة المعقدة تحتاج إلى تتبع العملية لا النتيجة النهائية فقط، مع تحديات في schema موحد، وbenchmarks واقعية، والاستعادة، والخصوصية [6]. وتدعم GitHub رسميًا artifact attestations لإثبات مصدر وسلامة مخرجات البناء في المستودعات العامة [7]. الاستنتاج هو أن الفرصة ليست لوحة observability جديدة، بل حلقة maintainer كاملة: capture → sanitize → fingerprint → pack → replay → compare → publish.
+الفجوة القابلة للدفاع ليست منافسة هذه الأدوات في التقاط نظام التشغيل أو debugging منخفض المستوى. الفجوة هي طبقة maintainer صغيرة: failure contract، input selection، privacy redaction، artifact integrity، verifier بلا تنفيذ، replay من workspace مختلف، reducer bounded، وتقارير CI ثابتة. يمكن لهذه الطبقة أن تتكامل مستقبلًا مع أدوات أعمق بدل استبدالها.
 
-| معيار القرار | FaultPack |
-| --- | ---: |
-| Originality | 9/10 |
-| Technical depth | 9/10 |
-| Real-world value | 10/10 |
-| Developer and maintainer value | 10/10 |
-| Open Source potential | 9/10 |
-| Portfolio and recruiter value | 10/10 |
-| Scalability and extensibility | 9/10 |
-| Documentation/testing/CI potential | 10/10 |
-| Total | **171/180** |
+## Scoring decision
+
+قُيّمت خمس أفكار عبر 18 معيارًا من 10، بإجمالي أقصى 180. الدرجات هي حكم هندسي استراتيجي مستند إلى تدقيق الحساب والبحث التنافسي وليست وعدًا بعدد النجوم.
+
+| الفكرة | المجموع | المتوسط | الموقف |
+| --- | ---: | ---: | --- |
+| FaultPack — حزم إعادة إنتاج الأعطال | **168** | 9.33 | مختارة |
+| MaintainerAtlas — مترجم قرارات الإصدار | 153 | 8.50 | احتياط |
+| Miqyas — بوابات جودة OCR العربية | 150 | 8.33 | موجودة ومتخصصة |
+| ProofMesh — أدلة تنفيذ AI موقعة | 149 | 8.28 | تكرار موضوعي |
+| SignalBudget — بوابات cardinality/schema | 143 | 7.94 | احتياط نيش |
+
+حصل FaultPack على أعلى قيمة لأنه يقدم developer value مباشرة، قابلية Open Source وCI مرتفعة، مساحة اختبار وتوثيق واسعة، ونقطة تنويع واضحة عن المحفظة الحالية.
 
 ## Delivered implementation
 
-يتضمن الإصدار الأول عقد manifest بإصدار `0.1`، canonical JSON وبصمة SHA-256، التقاط stdout/stderr، تنقيح الأسرار والرموز والبريد وعناوين IPv4، رفض traversal وsymlink، replay بمهلة محددة، مقارنة exit code وregex، وتقارير Markdown وSARIF وJUnit. كما يضم CLI أوامر `capture` و`inspect` و`verify` و`replay` و`version`، ومخطط JSON، وثيقة معمارية، README، سياسة أمان، CONTRIBUTING، Code of Conduct، قوالب Issues، وسير CI.
+الإصدار `0.2.0` يضم manifest versioned يدعم `0.1` و`0.2`، ملفات input منتقاة وآمنة مع SHA-256، بيئة child دنيا مع `--env` allowlist، redaction قبل الكتابة والhashing، HMAC اختياري، بصمة v0.2 مستقرة تستبعد timestamp وpack ID ومدة التنفيذ المتغيرة، وZIP deterministic.
 
-الحد الأمني موثق بوضوح: FaultPack ليس sandbox ولا يمنح replay أمانًا تلقائيًا ضد حزمة غير موثوقة. يجب استخدام runner أو container معزول عند التعامل مع حزم خارجية. هذه الصراحة جزء من تصميم المنتج وليست ملاحظة جانبية.
+تضم واجهة CLI أوامر `capture` و`inspect` و`verify` و`replay` و`reduce` و`version`. يعمل `replay` داخل workspace مؤقت بمهلة محددة، ويقارن exit code وregex وoutput hashes وduration limits عند التصريح بها. يعمل `reduce` على UTF-8 text inputs بأسلوب bounded line-oriented delta debugging ويحافظ على failure oracle المطابق. تُنتج التقارير بصيغ Markdown وSARIF وJUnit، مع JSON مناسب للأتمتة.
 
-## Verification
+يتضمن المستودع fixture end-to-end حقيقيًا تحت `fixtures/`: يمكن التحقق منه وإعادة تشغيله وتقليله دون شبكة. كما تم تحديث README وarchitecture وschema وSECURITY وCHANGELOG وGitHub Actions. يختبر workflow إصدارات Python 3.10–3.13، lint، mypy، pytest، build، وتدفق fixture الكامل.
 
-أثبت التحقق المحلي نجاح 9 اختبارات مع تغطية 90.91%، ونجاح `ruff check .`، و`mypy src`، وبناء wheel `faultpack-0.1.0-py3-none-any.whl`. كما نجح smoke flow كامل: capture ثم verify ثم replay مع توليد التقارير الثلاثة. واختبار العبث غيّر fingerprint يدويًا وأثبت أن `verify` يرجع رمز الفشل المتوقع.
+## Security boundary
 
-نجح GitHub Actions على Python 3.10 و3.11 و3.12 و3.13، مع jobs للجودة وsmoke، باستخدام `actions/checkout@v5` و`actions/setup-python@v6`. رابط آخر تشغيل ناجح هو [CI run](https://github.com/ateeqdesktop-dot/faultpack/actions/runs/32744913849).
+FaultPack ليس sandbox ولا يضمن network isolation أو إزالة كل PII. هذه الحدود موثقة في README وSECURITY. يمنع التنفيذ غير المقصود أثناء verify، يرفض traversal وabsolute paths وbackslash وsymlink escapes، يقلل البيئة الموروثة، ويضع حدًا زمنيًا للتشغيل وحدًا لعدد reducer runs. يجب تشغيل حزم خارجية في runner أو container معزول ومن دون credentials.
+
+## Verification results
+
+نجحت محليًا 14 اختبارات مع تغطية **91.68%**، ونجح `ruff check src tests`، و`mypy src`، وبناء `faultpack-0.2.0-py3-none-any.whl` و`faultpack-0.2.0.tar.gz`. كما نجح تدفق fixture الكامل: capture لحالة فشل، verify للبصمات، replay مع verdict مطابق، ثم reduce بأربع تشغيلات في المثال. لم يُدّعَ نجاح GitHub Actions قبل دفع التغييرات؛ workflow أصبحت جاهزة للتشغيل بعد النشر.
 
 ## Roadmap
 
-المرحلة التالية المنطقية هي adapters لـpytest وJest وGo test، ثم replay عبر Docker/Podman، وتعليقات GitHub App، والتحقق من artifact attestations، وdifferential replay matrices. أما browser/network capture وpublic anonymized corpus فهما امتدادان لاحقان بعد تثبيت العقد الأساسي وجمع feedback.
+بعد تثبيت عقد v0.2، تكون الإضافات المنطقية هي adapters لـpytest وJest وGo test، replay عبر OCI/Podman، Ed25519 وartifact attestations، differential replay matrices، browser/network adapters، وcorpus عامة مجهّلة. يجب أن تبقى هذه الطبقات additive وأن تستهلك pack/verdict contracts المستقرة بدل توسيع القلب بشكل غير منضبط.
 
 ## References
 
-[1]: https://github.com/modelcontextprotocol/inspector "MCP Inspector repository"
-[2]: https://github.com/Arize-ai/phoenix "Arize Phoenix repository"
-[3]: https://github.com/traccia-ai/traccia-py "Traccia repository"
-[4]: https://github.com/DevMubarak1/Devtriage "Devtriage repository"
-[5]: https://github.com/gitbugactions/gitbug-java "GitBug-Java repository"
-[6]: https://arxiv.org/html/2606.04990v4 "From Agent Traces to Trust: A Survey of Evidence Tracing and Execution Provenance in LLM Agents"
-[7]: https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations "GitHub artifact attestations documentation"
+[1]: https://www.reprozip.org/about.html "About ReproZip"
+[2]: https://github.com/VIDA-NYU/reprozip "ReproZip على GitHub"
+[3]: https://rr-project.org/ "rr project overview"
+[4]: https://github.com/rr-debugger/rr "rr على GitHub"
+[5]: https://github.com/squaresLab/BugZoo "BugZoo على GitHub"
+[6]: https://github.com/soarsmu/BugsInPy "BugsInPy على GitHub"
+[7]: https://github.com/coinse/libro "LIBRO على GitHub"

@@ -1,76 +1,59 @@
-# FaultPack — architecture and implementation plan
+# FaultPack v0.2 Architecture
 
 ## Product scope
 
-FaultPack is a local-first Python package and CLI. It creates a portable `faultpack.json` manifest plus captured artifacts, redacts sensitive values before persistence, computes stable content fingerprints, replays the declared command under an explicit working directory and environment policy, compares observed behavior with the recorded expectation, and emits Markdown/SARIF/JUnit-compatible reports for local use and GitHub Actions.
+FaultPack is a local-first Python package and CLI that turns a software failure into a portable, inspectable, privacy-aware reproduction pack. It captures a bounded command execution, selected input files, a minimal environment policy, sanitized output, and a versioned expectation. Other runners can verify bytes without executing, replay from a different directory, reduce a UTF-8 text fixture, and emit CI-friendly reports.
 
-The MVP intentionally has no hosted service and no arbitrary remote execution. A user runs it locally or inside their own CI runner. This keeps the security boundary explicit and makes the core artifact inspectable and testable.
+The MVP has no hosted service, implicit upload, model call, remote execution, or arbitrary command execution from a browser. Users run it locally or inside their own CI runner.
 
-## Architecture
+## Components
 
 ```text
 CLI (Typer)
-  ├── Capture service ── command runner ── process result
-  ├── Redaction engine ── env/stdout/stderr sanitizers
-  ├── Manifest model (Pydantic) ── schema validation
-  ├── Fingerprint engine ── canonical JSON + SHA-256
-  ├── Pack I/O ── deterministic ZIP layout
-  ├── Replay service ── bounded subprocess + policy checks
-  ├── Comparator ── exit code / regex / hash / duration assertions
-  └── Reporters ── human Markdown, SARIF, JUnit XML, JSON
-
-GitHub Action
-  ├── installs package
-  ├── runs faultpack verify/replay
-  ├── uploads pack and reports as artifacts
-  └── optionally writes a job summary (no token required for MVP)
+  ├── CaptureService ── minimal environment ── bounded subprocess
+  │                    └── redaction ── input copier ── PackWriter
+  ├── Manifest model (Pydantic) ── JSON Schema 0.1/0.2
+  ├── Integrity ── canonical JSON ── SHA-256 ── optional HMAC
+  ├── ReplayService ── temporary workspace ── Comparator ── verdict
+  ├── Reducer ── bounded line-oriented failure oracle
+  └── Reporters ── JSON / Markdown / SARIF / JUnit
 ```
 
-The core is dependency-light and framework-agnostic. The CLI is an adapter over pure services so unit tests can exercise capture, redaction, canonicalization, replay, comparison, and reporting without shelling out to GitHub.
+Core services are separated from the Typer adapter. A future pytest, Jest, Go test, OCI replay, or attestation adapter can target the manifest and verdict contracts without changing pack I/O.
 
 ## Manifest contract
 
-`faultpack.json` contains `format_version`, `pack_id`, `created_at`, `source` (repository URL, commit, branch), `command` (argv array, cwd, timeout), `environment` (OS, Python, selected non-secret variables), `input_files` (relative paths and SHA-256), `observed` (exit code, duration, stdout/stderr artifact paths and hashes), and `expectation` (exit code, optional stdout/stderr regexes, optional artifact hashes). The manifest itself is canonicalized with sorted keys, UTF-8 encoding, and normalized newlines before hashing.
+`faultpack.json` is canonical UTF-8 JSON with sorted keys and a trailing newline. v0.2 contains `format_version`, `pack_id`, `created_at`, `source`, `command`, `environment`, `input_files`, `observed`, `expectation`, and `fingerprint`. The command stores argv, relative cwd, timeout, and allowed environment names. Inputs store safe relative paths and byte hashes. Observations store status, exit code, duration, output paths, and output hashes. Expectations support exit code, regexes, output hashes, and a maximum duration.
 
-The pack layout is deterministic:
+The logical v0.2 fingerprint excludes volatile creation time, pack ID, and measured duration. v0.1 manifests remain parseable and use their historical fingerprint semantics. Artifact and input hashes are always checked independently.
 
-```text
-faultpack/
-├── faultpack.json
-├── artifacts/stdout.txt
-├── artifacts/stderr.txt
-├── artifacts/inputs/<relative-paths>
-└── reports/
-```
+## Data flow
 
-Paths are always relative to the pack root; absolute paths, `..` traversal, symlinks, and files outside the declared input root are rejected. Zip entries are sorted and carry normalized timestamps so identical inputs produce identical pack bytes apart from the creation timestamp field, which is excluded from the content fingerprint.
+Capture validates the command and paths, derives a minimal environment, runs the command under a timeout, redacts output before persistence, copies selected inputs, builds the manifest, computes the logical fingerprint, writes deterministic files, and signs the fingerprint when `FAULTPACK_SIGNING_KEY` is present. Verify reads only the manifest and bytes, validates schema, paths, input/output hashes, and an optional HMAC signature. Replay verifies first, copies inputs into a temporary workspace, executes the declared argv with the same relative layout, compares observed behavior with the expectation, and writes reports. Reduce copies a valid pack, removes contiguous line chunks from one declared text input, and accepts candidates only when the same non-passing oracle remains true; it is capped by `max_runs`.
 
-## Error and security model
+## Security model
 
-Capture failures are represented as typed result states rather than unhandled tracebacks. A command timeout terminates the process group where supported and yields `timeout`; a non-zero exit is valid evidence and is not itself a tool error; malformed manifests yield `schema_error`; unsafe paths yield `policy_error`; mismatches yield `reproduction_failed`.
+The child environment contains only `PATH`, locale, temporary directory, and names explicitly allowed by the user. Secret-looking names and common token, email, IPv4, and private-key patterns are redacted before output is written or hashed. Absolute paths, traversal, backslash escapes, and symlink escapes are rejected. Verification never runs a command. Replay uses a temporary workspace and a timeout, but it is not a sandbox and does not promise network isolation. Untrusted packs must be run in an isolated CI or container environment.
 
-The redactor applies ordered rules for environment variable names containing `TOKEN`, `SECRET`, `PASSWORD`, `PASS`, `KEY`, `COOKIE`, and `AUTH`, plus configurable regular expressions for bearer tokens, private-key blocks, common cloud keys, email addresses, and IPv4 addresses. Redaction is performed before hashing or writing. The CLI never prints secret values and supports `--redact-pattern` additions. A pack is safe to share only when the user reviews the generated report; FaultPack does not claim perfect PII detection.
+Threats include malicious manifests, path traversal, symlink escapes, tampered bytes, secret leakage, unsafe regexes, and unbounded reduction. Mitigations are typed validation, safe path resolution, bounded subprocesses, capped reducer runs, explicit redaction warnings, deterministic hashes, and no implicit network access.
 
-Replay defaults to an allowlist of environment variables, a temporary working directory, a bounded timeout, no network-control promise, and no elevated privileges. The README will clearly state that replay is not a sandbox and that users should run untrusted packs inside an isolated CI/container environment.
+## Error and exit semantics
 
-## Non-functional requirements
+| Condition | Outcome |
+| --- | --- |
+| Reproduction matches expectation | exit `0` |
+| Valid pack but replay mismatch | exit `5` |
+| Malformed, unsafe, tampered, or invalidly signed pack | exit `4` |
+| Capture child exits non-zero | valid evidence with `observed.status=failed` |
+| Capture child times out | valid evidence with `observed.status=timeout` |
+| Unexpected capture/CLI error | exit `3` |
 
-The MVP must be deterministic for the same declared inputs, return stable machine-readable exit codes, work on Linux/macOS/Windows where Python subprocess semantics allow, avoid network access in core operations, validate all external paths, and run with Python 3.10+. It must provide a clear `--json` mode for automation, 90%+ unit coverage on core services, smoke tests for the CLI, and a GitHub Actions matrix for supported Python versions.
+A non-zero child exit is not automatically a FaultPack failure; it is the evidence that the pack records. The replay verdict decides whether that evidence was reproduced.
 
-## MVP acceptance criteria
+## Performance and portability
 
-A fixture can be captured into a pack, copied to another directory, replayed, and reported as reproduced without relying on the original absolute path. A tampered artifact or manifest is detected by fingerprint verification. Secret-like values in environment/output are redacted before pack creation. A mismatch produces a non-zero exit code and a readable Markdown/SARIF report. The same fixture produces a stable content fingerprint across repeated captures. The GitHub Action can run verification and upload generated reports.
+Verification is linear in manifest and artifact bytes and hashes large files in chunks. Replay is bounded by the manifest timeout. Reduction is bounded by `max_runs` and is optimized for small or medium text fixtures. The package targets Python 3.10+ and works across operating systems where Python subprocess semantics permit; the security boundary remains explicit on every platform.
 
-## Roadmap
+## Extension roadmap
 
-Advanced features include a Rust hashing/packing accelerator, adapters for pytest/Jest/Go test, Docker/Podman replay backends, GitHub App issue comments, artifact attestation verification, differential matrix replay, browser/network trace adapters, and an anonymized public corpus. None is required for MVP correctness.
-
-## Implementation order
-
-1. Package metadata, typed models, error taxonomy, and canonicalization.
-2. Redaction and safe filesystem primitives.
-3. Capture and deterministic pack writer.
-4. Verification, replay, comparison, and stable exit codes.
-5. Reporters and CLI commands.
-6. Fixtures, unit/integration tests, GitHub Action, lint/type checks, and release metadata.
-7. README, security policy, contribution guide, changelog, and final smoke verification.
+Additive extensions include pytest/Jest/Go adapters, OCI/Podman replay backends, Ed25519 signatures and attestations, differential replay matrices, browser/network trace adapters, and an anonymized public corpus. Extensions must consume the stable pack contract rather than place provider-specific behavior in the core.
