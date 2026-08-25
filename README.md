@@ -1,20 +1,34 @@
 # FaultPack
 
-[![CI](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml/badge.svg)](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](https://www.python.org/)
+[![CI](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml/badge.svg)](https://github.com/ateeqdesktop-dot/faultpack/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](https://www.python.org/) [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-**FaultPack turns “it fails on my machine” into a portable, privacy-first, verifiable reproduction artifact.**
+**FaultPack turns an opaque failure into a portable, privacy-preserving, verifiable experiment that another machine can reproduce, compare, and trust.**
 
-Capture a command failure once, include only the input files you choose, redact sensitive values before persistence, verify every byte, replay the pack from another directory, and reduce a text fixture while preserving the failure oracle. FaultPack is local-first: it needs no hosted account, model call, telemetry pipeline, or implicit upload.
+A screenshot is not a reproduction. A raw CI log is not an evidence contract. FaultPack captures the exact command, selected inputs, bounded environment, redacted observations, and declared failure oracle in a small inspectable directory. It can then verify every byte, replay the case in a temporary workspace, reduce a text fixture while preserving the failure, compare two behaviors, sign the fingerprint, and emit CI-native reports.
 
-> **Capture the failure once. Share the evidence safely. Verify the same behavior anywhere.**
+> **Capture once. Share safely. Verify independently. Replay anywhere.**
+
+FaultPack is **local-first**. It requires no hosted account, model call, telemetry pipeline, database, or implicit upload.
 
 ## Why FaultPack exists
 
-A maintainer cannot reliably act on a screenshot or an unstructured log attachment. A useful failure report needs the source revision, exact argv, working directory, relevant environment, selected inputs, observed status, expected behavior, and a way to decide whether another runner reproduced the same failure.
+Maintainers lose time when a bug report omits the source revision, argv, working directory, relevant inputs, environment, expected behavior, or a trustworthy way to determine whether a second run reproduced the same failure. FaultPack makes those decisions explicit and machine-checkable without pretending to be a sandbox or a universal truth oracle.
 
-FaultPack packages those facts in a small, inspectable directory. The manifest is versioned and schema-validated, the logical record has a canonical SHA-256 fingerprint, artifacts and inputs have independent hashes, and reports are ready for CI review. The format is language-neutral; the reference implementation is Python.
+The project is an evidence layer, not an observability platform. It complements test runners, CI systems, tracing products, and supply-chain attestations by giving a single failure case a stable portable contract.
 
-FaultPack is deliberately **not a sandbox**, a full operating-system image, an observability service, or a guarantee of perfect PII removal. Run untrusted packs in an isolated CI runner or container and review generated files before sharing them.
+## What it provides
+
+| Capability | What it means in practice |
+|---|---|
+| **Portable pack format** | A versioned JSON manifest plus selected artifacts and inputs. |
+| **Privacy-first capture** | Explicit input selection, environment allowlisting, and redaction before persistence and hashing. |
+| **Integrity verification** | Canonical JSON, SHA-256 fingerprints, per-file hashes, traversal/symlink protection, and optional signatures. |
+| **Bounded replay** | Verified inputs are restored to a temporary workspace and the declared command runs under its timeout. |
+| **Failure oracle** | Exit code, stdout/stderr regexes, output hashes, duration caps, and explicit mismatch reasons. |
+| **Differential replay** | Replay two packs and report behavioral differences without treating timing as causal proof. |
+| **Bounded reduction** | Line-oriented delta debugging that accepts a candidate only while the declared failure oracle remains true. |
+| **CI reports** | JSON, Markdown, SARIF, JUnit XML, deterministic ZIP bundles, and a reusable GitHub Action. |
+| **Detached Ed25519 signing** | Optional interoperable signatures over the logical fingerprint, verified with an explicit public key. |
 
 ## Quick start
 
@@ -23,27 +37,86 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
 
-# Capture a command and one selected input file.
-faultpack capture --out ./pack --input examples/hello.txt -- \
+# Capture a selected input and a command failure.
+faultpack capture --out ./pack \
+  --input examples/hello.py --input examples/hello.txt -- \
   python examples/hello.py examples/hello.txt
 
+# Verify without executing the command, then replay.
 faultpack verify ./pack
 faultpack replay ./pack --report-dir ./report
 ```
 
-A successful replay exits with `0`. A valid but non-matching replay exits with `5`. A malformed, unsafe, tampered, or invalidly signed pack exits with `4`. Capture records a non-zero child exit as valid failure evidence rather than treating it as a FaultPack crash.
+A non-zero child exit during capture is **valid failure evidence**, not a FaultPack crash. Replay exits with `0` when the pack's oracle matches and `5` when the replay is valid but does not match. Malformed, unsafe, tampered, or invalidly signed packs exit with `4`.
+
+## Sign a pack with Ed25519
+
+Signing is optional and keeps the base install small. The private key never enters the pack.
+
+```bash
+pip install -e '.[signing]'
+faultpack keys --output-dir ./keys
+faultpack capture --out ./signed-pack \
+  --ed25519-private-key ./keys/faultpack-ed25519-private.pem -- \
+  python -c "print('signed')"
+faultpack verify ./signed-pack \
+  --public-key ./keys/faultpack-ed25519-public.pem
+```
+
+The signature covers the canonical logical fingerprint, not a mutable path or a human-readable signer label. The verifier does not discover trust roots, fetch keys, or execute pack content.
+
+## Differential replay
+
+Differential replay is useful when a maintainer wants to compare a baseline and a candidate behavior without adopting a hosted experiment service.
+
+```bash
+faultpack diff ./baseline-pack ./candidate-pack \
+  --output ./report/diff.json
+```
+
+The result includes status, exit code, stdout/stderr digests, oracle outcomes, mismatch reasons, and a timing delta marked as diagnostic-only. A behavioral difference exits with `5`; an invalid pack exits with `4`.
 
 ## Reduce a failing fixture
 
-If a failure is driven by a text input, FaultPack can apply bounded, line-oriented delta debugging:
-
 ```bash
-faultpack reduce ./pack --input examples/bug.txt --out ./reduced --max-runs 100
+faultpack reduce ./pack \
+  --input examples/repro_input.txt \
+  --out ./reduced \
+  --max-runs 100
 faultpack verify ./reduced
 faultpack replay ./reduced --report-dir ./reduced-report
 ```
 
-The reducer removes contiguous chunks and accepts a candidate only while the pack’s declared oracle remains failing. It is intentionally conservative and bounded; it is not a replacement for a domain-aware parser reducer.
+The reducer is conservative and bounded. It is not a parser-aware reducer and it does not claim that a smaller input is the only or canonical root cause.
+
+## GitHub Actions
+
+The repository ships a composite action for downstream projects:
+
+```yaml
+name: Reproduction
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install .
+      - uses: ateeqdesktop-dot/faultpack@v1.0.0
+        with:
+          pack: fixtures/failure-pack
+          report-dir: faultpack-report
+```
+
+The action verifies before replaying and uploads Markdown, SARIF, and JUnit artifacts. For Ed25519 verification, provide a public key path through `public-key` and install the signing extra in the calling workflow. Pin the action to a release tag or commit in production rather than tracking `main`.
 
 ## Pack format
 
@@ -54,85 +127,39 @@ faultpack/
 │   ├── stdout.txt
 │   ├── stderr.txt
 │   └── inputs/<selected-relative-files>
-└── signature.hmac  # optional
+├── signature.hmac       # optional legacy compatibility
+└── signature.ed25519    # optional preferred detached signature
 ```
 
-`faultpack.json` uses the v0.2 schema in [`docs/faultpack.schema.json`](docs/faultpack.schema.json). It records a source reference, argv and timeout, a minimal environment policy, selected input paths and hashes, observed result metadata, expectation predicates, and a logical fingerprint. The fingerprint excludes the volatile creation timestamp, pack ID, and measured duration in v0.2 so repeated captures of the same logical evidence remain stable. v0.1 manifests remain readable for migration.
+The manifest records a source reference, argv and timeout, relative cwd, minimal environment policy, selected input paths and hashes, observed result metadata, expectation predicates, and a logical fingerprint. The fingerprint excludes volatile creation time, pack ID, and measured duration so repeated captures of the same logical evidence remain stable.
 
-## Privacy and security
+## Security boundary
 
-The child process receives a conservative baseline environment plus names explicitly passed through `--env`. Secret-looking names and common token, email, IPv4, and private-key patterns are redacted before output is written or hashed. Paths are relative; traversal, absolute paths, backslash escapes, and symlink escapes are rejected. Verification never executes the declared command. Replay is bounded by a timeout and uses a temporary workspace, but it does not claim network isolation or sandboxing.
+FaultPack protects against accidental disclosure, path traversal, symlink escapes, pack tampering, and misleading verification results. It does **not** sandbox a malicious command, restrict kernel capabilities, guarantee perfect PII removal, or prove that the producer's original observation was truthful.
 
-For signed packs, set a key in the process environment:
+Replay untrusted packs inside an isolated CI runner or container with filesystem and network restrictions supplied by the caller. FaultPack never executes the declared command during `inspect` or `verify`, never fetches URLs, never loads plugins from a pack, and never treats a string label as cryptographic identity.
 
-```bash
-export FAULTPACK_SIGNING_KEY='use-a-secret-manager-in-real-CI'
-faultpack capture --out ./signed-pack -- python -c "raise SystemExit(1)"
-faultpack verify ./signed-pack --require-signature
-```
-
-Never put signing keys, credentials, real customer traces, or private incident data in a pack or fixture. See [`SECURITY.md`](SECURITY.md) for the disclosure process and threat model.
-
-## GitHub Actions
-
-```yaml
-name: Verify failure pack
-on: [push, pull_request]
-
-permissions:
-  contents: read
-
-jobs:
-  reproduction:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install .
-      - run: faultpack verify fixtures/failure-pack
-      - run: faultpack replay fixtures/failure-pack --report-dir faultpack-report
-        continue-on-error: true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: faultpack-report
-          path: faultpack-report/
-```
-
-The generated report directory contains Markdown, SARIF, and JUnit XML. Upload SARIF with GitHub’s official Code Scanning action when that integration is enabled in your repository.
-
-The repository also ships a composite Action for downstream projects:
-
-```yaml
-- uses: actions/checkout@v4
-- uses: actions/setup-python@v5
-  with:
-    python-version: '3.12'
-- uses: ateeqdesktop-dot/faultpack@main
-  with:
-    pack: fixtures/failure-pack
-    report-dir: faultpack-report
-```
-
-Pin the Action to a release tag in production. A signed pack can be required with `require-signature: 'true'` and `FAULTPACK_SIGNING_KEY` configured in the runner environment.
+Redaction covers common token, bearer, private-key, email, and IPv4 patterns plus user-supplied regular expressions. Regex redaction cannot guarantee removal of arbitrary sensitive content, so review a pack before sharing it.
 
 ## Architecture
 
 ```text
-CLI
- ├── CaptureService ── bounded subprocess ── redaction ── PackWriter
- ├── Manifest/Schema ── canonical JSON ── SHA-256 fingerprint
- ├── Integrity ── artifact/input hashes ── optional HMAC
- ├── ReplayService ── temporary workspace ── Comparator ── verdict
- ├── Reducer ── bounded line-oriented oracle-preserving reduction
- └── Reporters ── JSON / Markdown / SARIF / JUnit
+CLI / GitHub Action
+        |
+        +--> CaptureService --> redaction --> PackWriter
+        |
+        +--> Verifier -------> canonical JSON --> hashes --> signatures
+        |
+        +--> ReplayService --> temporary workspace --> bounded subprocess
+        |                                             |
+        +--> Reducer ---------------------------------+
+        |
+        +--> Differential comparer --> JSON / Markdown / SARIF / JUnit
 ```
 
-The core services are separated from Typer commands. New adapters such as pytest, Jest, Go test, OCI replay, or attestation verification can produce observations against the stable pack contract without embedding provider-specific code in the manifest writer.
+The domain layer is independent from Typer. `models.py` owns the schema contract, `core.py` owns canonicalization and verification, `pack.py` owns capture and deterministic packaging, `replay.py` owns execution and oracle comparison, `diff.py` owns behavioral comparison, `reducer.py` owns bounded minimization, `report.py` owns output formats, and `signing.py` owns optional Ed25519 interoperability.
 
-Detailed product, data-flow, error-flow, security, performance, and extension decisions live in [`docs/architecture.md`](docs/architecture.md).
+See [`docs/v1-design.md`](docs/v1-design.md) for the product vision, data flow, error semantics, security model, performance strategy, extensibility plan, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
 
 ## Development
 
@@ -144,11 +171,11 @@ mypy src
 python -m build --wheel --sdist
 ```
 
-Contributions should include a focused test for behavior changes and documentation for contract changes. Please read [`CONTRIBUTING.md`](CONTRIBUTING.md), and use sanitized, deterministic fixtures only.
+Behavior changes must include focused tests and a contract note. Fixtures must be deterministic and sanitized. The project welcomes adapters for pytest, Jest, Go test, and OCI/Podman as separate producer-side integrations that preserve the core verifier's passive boundary.
 
 ## Roadmap
 
-The next additive layers are pytest/Jest/Go adapters, OCI/Podman replay backends, Ed25519 signatures and attestations, differential replay matrices, browser/network trace adapters, and a public anonymized corpus. None is required for the correctness of the local v0.2 core.
+FaultPack v1.0 provides the complete local evidence workflow. v1.1 will focus on pytest/Jest/Go adapters and replay matrices. v1.2 can add OCI/Podman backends and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
 
 ## License
 

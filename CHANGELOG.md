@@ -2,6 +2,25 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.0.0] — 2026-08-25
+
+### Added
+
+- Production-oriented flagship release for the portable failure evidence workflow.
+- Optional Ed25519 key generation and detached fingerprint signatures through the `signing` extra.
+- Explicit public-key verification with no trust-root discovery or network access.
+- `diff` command for replaying and comparing two verified packs with stable JSON output.
+- `bundle` command for verified deterministic ZIP export.
+- Stable JSON output for capture, verification, differential replay, and bundle commands.
+- v1.0 product and architecture design covering data flow, error semantics, security, performance, and extension boundaries.
+- Rewritten README focused on the product problem, adoption path, security boundary, and Open Source contribution model.
+
+### Quality
+
+- Added focused tests for Ed25519 signing, tamper rejection, differential behavior, bundle generation, CLI contracts, and exit codes.
+- Preserved v0.1/v0.2 pack parsing and legacy HMAC verification behavior.
+- Ruff, mypy, pytest with coverage gate, `git diff --check`, and wheel/sdist builds pass locally.
+
 ## [0.2.0] — 2026-08-25
 
 ### Added

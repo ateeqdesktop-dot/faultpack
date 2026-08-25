@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Annotated
@@ -5,12 +7,14 @@ from typing import Annotated
 import typer
 
 from .core import FaultPackError, verify_pack
-from .pack import capture_pack
+from .diff import diff_observations, observe
+from .pack import capture_pack, write_zip
 from .reducer import reduce_text_input
 from .replay import compare, replay
 from .report import junit_report, markdown_report, sarif_report, write_json
+from .signing import generate_keypair
 
-VERSION = "0.2.0"
+VERSION = "1.0.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -33,11 +37,12 @@ def capture(
     redact_pattern: Annotated[
         list[str] | None, typer.Option("--redact-pattern", help="Additional redaction regex")
     ] = None,
+    ed25519_private_key: Annotated[
+        Path | None,
+        typer.Option("--ed25519-private-key", help="PEM private key for detached signing"),
+    ] = None,
 ) -> None:
     """Capture a command result into a portable pack directory."""
-    input_file = input_file or []
-    env = env or []
-    redact_pattern = redact_pattern or []
     try:
         manifest = capture_pack(
             Path.cwd(),
@@ -45,9 +50,10 @@ def capture(
             out,
             cwd,
             timeout,
-            input_files=input_file,
-            env_allowlist=env,
-            extra_patterns=redact_pattern,
+            input_files=input_file or [],
+            env_allowlist=env or [],
+            extra_patterns=redact_pattern or [],
+            ed25519_private_key=ed25519_private_key,
         )
     except (FaultPackError, OSError) as exc:
         typer.echo(str(exc), err=True)
@@ -58,6 +64,7 @@ def capture(
                 "pack": str(out),
                 "fingerprint": manifest.fingerprint,
                 "status": manifest.observed.status,
+                "signed": (out / "signature.ed25519").exists() or (out / "signature.hmac").exists(),
             },
             ensure_ascii=False,
         )
@@ -78,10 +85,13 @@ def inspect(pack: Annotated[Path, typer.Argument(exists=True)]) -> None:
 def verify(
     pack: Annotated[Path, typer.Argument(exists=True)],
     require_signature: Annotated[bool, typer.Option("--require-signature")] = False,
+    public_key: Annotated[
+        Path | None, typer.Option("--public-key", help="PEM Ed25519 public key")
+    ] = None,
 ) -> None:
     """Verify manifest, inputs, artifacts, and optional signature without execution."""
     try:
-        manifest = verify_pack(pack, require_signature=require_signature)
+        manifest = verify_pack(pack, require_signature=require_signature, public_key=public_key)
     except (FaultPackError, OSError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(4) from exc
@@ -93,10 +103,15 @@ def replay_cmd(
     pack: Annotated[Path, typer.Argument(exists=True)],
     report_dir: Annotated[Path | None, typer.Option("--report-dir")] = None,
     require_signature: Annotated[bool, typer.Option("--require-signature")] = False,
+    public_key: Annotated[
+        Path | None, typer.Option("--public-key", help="PEM Ed25519 public key")
+    ] = None,
 ) -> None:
     """Replay a verified pack and emit Markdown, SARIF, and JUnit reports."""
     try:
-        manifest = verify_pack(pack, require_signature=require_signature)
+        manifest = verify_pack(
+            pack, require_signature=require_signature, public_key=public_key
+        )
         status, code, duration, stdout, stderr = replay(pack, manifest)
         reasons = compare(manifest, status, code, duration, stdout, stderr)
     except (FaultPackError, OSError) as exc:
@@ -126,6 +141,62 @@ def replay_cmd(
         )
     )
     raise typer.Exit(0 if reproduced else 5)
+
+
+@app.command("diff")
+def diff(
+    left: Annotated[Path, typer.Argument(exists=True)],
+    right: Annotated[Path, typer.Argument(exists=True)],
+    public_key: Annotated[
+        Path | None, typer.Option("--public-key", help="PEM Ed25519 public key for both packs")
+    ] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+) -> None:
+    """Replay two verified packs and report behavioral differences."""
+    try:
+        left_manifest = verify_pack(left, public_key=public_key)
+        right_manifest = verify_pack(right, public_key=public_key)
+        result = diff_observations(
+            observe(left_manifest, replay(left, left_manifest)),
+            observe(right_manifest, replay(right, right_manifest)),
+        )
+    except (FaultPackError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    if output:
+        write_json(output, result)
+    typer.echo(json.dumps(result, ensure_ascii=False))
+    raise typer.Exit(0 if result["identical_behavior"] else 5)
+
+
+@app.command("bundle")
+def bundle(
+    pack: Annotated[Path, typer.Argument(exists=True)],
+    output: Annotated[Path, typer.Option("--output", "-o")],
+) -> None:
+    """Verify a pack and write a deterministic ZIP bundle."""
+    try:
+        verify_pack(pack)
+        write_zip(pack, output)
+    except (FaultPackError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    typer.echo(json.dumps({"bundle": str(output), "verified": True}))
+
+
+@app.command("keys")
+def keys(
+    output_dir: Annotated[Path, typer.Option("--output-dir", "-o")],
+) -> None:
+    """Generate an Ed25519 keypair for local signing experiments."""
+    try:
+        private_path = output_dir / "faultpack-ed25519-private.pem"
+        public_path = output_dir / "faultpack-ed25519-public.pem"
+        generate_keypair(private_path, public_path)
+    except (FaultPackError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    typer.echo(json.dumps({"private_key": str(private_path), "public_key": str(public_path)}))
 
 
 @app.command("reduce")

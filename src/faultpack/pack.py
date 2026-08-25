@@ -9,7 +9,14 @@ import zipfile
 from pathlib import Path
 from typing import Literal
 
-from .core import canonical_json, manifest_fingerprint, safe_pack_path, sha256_bytes, signature_for
+from .core import (
+    PolicyError,
+    canonical_json,
+    manifest_fingerprint,
+    safe_pack_path,
+    sha256_bytes,
+    signature_for,
+)
 from .models import CommandSpec, Environment, Expectation, FileEntry, Manifest, Observed, Source
 from .redact import redact_environment, redact_value
 
@@ -83,8 +90,12 @@ def capture_pack(
     extra_patterns: list[str] | None = None,
     input_files: list[str] | None = None,
     env_allowlist: list[str] | None = None,
+    ed25519_private_key: Path | None = None,
 ) -> Manifest:
     root = root.resolve()
+    output_root = out.resolve()
+    if output_root == root or output_root in root.parents:
+        raise PolicyError("output pack must not contain the capture root")
     if out.exists():
         shutil.rmtree(out)
     (out / "artifacts").mkdir(parents=True)
@@ -126,6 +137,13 @@ def capture_pack(
     if signing_key:
         (out / "signature.hmac").write_text(
             signature_for(manifest.fingerprint or "", signing_key) + "\n", encoding="ascii"
+        )
+    if ed25519_private_key is not None:
+        from .signing import sign_fingerprint
+
+        (out / "signature.ed25519").write_text(
+            sign_fingerprint(manifest.fingerprint or "", ed25519_private_key) + "\n",
+            encoding="ascii",
         )
     return manifest
 

@@ -95,7 +95,10 @@ def verify_signature(pack_dir: Path, fingerprint: str, key: str, required: bool 
 
 
 def verify_pack(
-    pack_dir: Path, signing_key: str | None = None, require_signature: bool = False
+    pack_dir: Path,
+    signing_key: str | None = None,
+    require_signature: bool = False,
+    public_key: Path | None = None,
 ) -> Manifest:
     manifest = load_manifest(pack_dir / "faultpack.json")
     verify_manifest(manifest)
@@ -111,8 +114,22 @@ def verify_pack(
         if actual != entry.sha256:
             raise PackIntegrityError(f"input fingerprint mismatch: {entry.path}")
     key = signing_key or os.getenv("FAULTPACK_SIGNING_KEY")
-    if require_signature and not key:
-        raise PackIntegrityError("signature required but FAULTPACK_SIGNING_KEY is not set")
-    if key:
+    if public_key is not None:
+        signature_path = pack_dir / "signature.ed25519"
+        if not signature_path.exists():
+            raise PackIntegrityError("Ed25519 signature required but signature.ed25519 is missing")
+        try:
+            from .signing import verify_fingerprint_signature
+
+            verify_fingerprint_signature(
+                manifest.fingerprint or "", signature_path.read_text(encoding="ascii"), public_key
+            )
+        except FaultPackError as exc:
+            raise PackIntegrityError(str(exc)) from exc
+    elif key:
         verify_signature(pack_dir, manifest.fingerprint or "", key, require_signature)
+    elif require_signature:
+        raise PackIntegrityError(
+            "signature required but provide --public-key or set FAULTPACK_SIGNING_KEY"
+        )
     return manifest

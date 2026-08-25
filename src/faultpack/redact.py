@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import re
 
+from .core import FaultPackError
+
+
+class RedactionPolicyError(FaultPackError):
+    """Raised when an additional redaction pattern is invalid."""
+
 _SECRET_NAME = re.compile(
     r"(TOKEN|SECRET|PASSWORD|PASS|API[_-]?KEY|PRIVATE[_-]?KEY|COOKIE|AUTH)", re.I
 )
@@ -19,7 +25,10 @@ def redact_value(value: str, extra_patterns: list[str] | None = None) -> str:
     result = _EMAIL.sub("[REDACTED_EMAIL]", result)
     result = _IPV4.sub("[REDACTED_IP]", result)
     for pattern in extra_patterns or []:
-        result = re.sub(pattern, "[REDACTED]", result)
+        try:
+            result = re.sub(pattern, "[REDACTED]", result)
+        except re.error as exc:
+            raise RedactionPolicyError(f"invalid redaction pattern: {exc}") from exc
     return result
 
 
