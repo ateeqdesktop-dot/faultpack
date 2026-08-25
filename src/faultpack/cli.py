@@ -7,6 +7,7 @@ from typing import Annotated
 import typer
 
 from .core import FaultPackError, verify_pack
+from .diagnostics import diagnose_pack
 from .diff import diff_observations, observe
 from .matrix import run_matrix, write_matrix_reports
 from .models import MatrixProfile
@@ -16,7 +17,7 @@ from .replay import compare, replay
 from .report import junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -81,6 +82,30 @@ def inspect(pack: Annotated[Path, typer.Argument(exists=True)]) -> None:
     except OSError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(3) from exc
+
+
+@app.command()
+def diagnose(
+    pack: Annotated[Path, typer.Argument(exists=True)],
+    fail_on_findings: Annotated[
+        bool, typer.Option("--fail-on-findings", help="Exit 6 when any privacy finding exists")
+    ] = False,
+    max_bytes: Annotated[int, typer.Option("--max-bytes", min=1, max=50_000_000)] = 2_000_000,
+) -> None:
+    """Passively scan a verified pack for share-before-you-send privacy findings."""
+    try:
+        findings = diagnose_pack(pack, max_bytes=max_bytes)
+    except (FaultPackError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    payload = {
+        "clean": not findings,
+        "finding_count": len(findings),
+        "findings": [item.as_dict() for item in findings],
+    }
+    typer.echo(json.dumps(payload, ensure_ascii=False))
+    if findings and fail_on_findings:
+        raise typer.Exit(6)
 
 
 @app.command()

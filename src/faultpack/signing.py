@@ -66,9 +66,7 @@ def sign_fingerprint(fingerprint: str, private_path: Path) -> str:
     return base64.b64encode(signature).decode("ascii")
 
 
-def verify_fingerprint_signature(
-    fingerprint: str, signature_text: str, public_path: Path
-) -> bool:
+def verify_fingerprint_signature(fingerprint: str, signature_text: str, public_path: Path) -> bool:
     """Verify a base64 Ed25519 signature over the ASCII fingerprint."""
     _, Ed25519PublicKey, serialization, InvalidSignature = _crypto()
     try:

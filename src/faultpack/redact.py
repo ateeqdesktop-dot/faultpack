@@ -8,6 +8,7 @@ from .core import FaultPackError
 class RedactionPolicyError(FaultPackError):
     """Raised when an additional redaction pattern is invalid."""
 
+
 _SECRET_NAME = re.compile(
     r"(TOKEN|SECRET|PASSWORD|PASS|API[_-]?KEY|PRIVATE[_-]?KEY|COOKIE|AUTH)", re.I
 )

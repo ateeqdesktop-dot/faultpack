@@ -30,6 +30,7 @@ The project is an evidence layer, not an observability platform. It complements 
 | **CI reports** | JSON, Markdown, SARIF, JUnit XML, deterministic ZIP bundles, and a reusable GitHub Action. |
 | **Detached Ed25519 signing** | Optional interoperable signatures over the logical fingerprint, verified with an explicit public key. |
 | **Replay matrix** | Run the same verified failure across ordered, bounded local profiles and aggregate reproducibility results. |
+| **Privacy preflight** | Passively scan declared evidence for common secret and PII indicators before sharing; suitable for CI gates. |
 | **Adapter-ready contract** | Language-neutral manifests let pytest, Jest, Go, and other producers share the same evidence layer. |
 
 ## Quick start
@@ -44,10 +45,13 @@ faultpack capture --out ./pack \
   --input examples/hello.py --input examples/hello.txt -- \
   python examples/hello.py examples/hello.txt
 
-# Verify without executing the command, then replay.
+# Verify without executing the command, then run a share-before-you-send privacy preflight.
 faultpack verify ./pack
+faultpack diagnose ./pack --fail-on-findings
 faultpack replay ./pack --report-dir ./report
 ```
+
+`diagnose` is passive: it verifies the manifest fingerprint and scans only declared textual evidence for token-like values, private keys, emails, and oversized files. It never executes the declared command, fetches URLs, follows symlinks, or uploads data. Use `--fail-on-findings` as a CI gate; it exits with `6` when review is required.
 
 A non-zero child exit during capture is **valid failure evidence**, not a FaultPack crash. Replay exits with `0` when the pack's oracle matches and `5` when the replay is valid but does not match. Malformed, unsafe, tampered, or invalidly signed packs exit with `4`.
 
@@ -181,7 +185,7 @@ CLI / GitHub Action
 
 The domain layer is independent from Typer. `models.py` owns the schema contract, `core.py` owns canonicalization and verification, `pack.py` owns capture and deterministic packaging, `replay.py` owns execution and oracle comparison, `diff.py` owns behavioral comparison, `reducer.py` owns bounded minimization, `report.py` owns output formats, and `signing.py` owns optional Ed25519 interoperability.
 
-See [`docs/v1-design.md`](docs/v1-design.md) for the original product contract, and [`docs/architecture-v1.1.md`](docs/architecture-v1.1.md) for the matrix architecture, security model, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
+See [`docs/flagship-strategy.md`](docs/flagship-strategy.md) for the product decision and competitive rationale. See [`docs/v1-design.md`](docs/v1-design.md) for the original product contract, and [`docs/architecture-v1.1.md`](docs/architecture-v1.1.md) for the matrix architecture, security model, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
 
 ## Development
 
@@ -197,7 +201,7 @@ Behavior changes must include focused tests and a contract note. Fixtures must b
 
 ## Roadmap
 
-FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. v1.2 can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
+FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. Future releases can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
 
 ## License
 

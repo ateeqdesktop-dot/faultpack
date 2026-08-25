@@ -2,6 +2,23 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.2.0] — Privacy preflight
+
+### Added
+
+- Added passive `faultpack diagnose PACK` for share-before-you-send privacy diagnostics.
+- Added machine-readable findings for private keys, GitHub tokens, AWS access keys, bearer tokens, secret-like assignments, email addresses, and oversized textual evidence.
+- Added `--fail-on-findings` with exit code `6` for CI privacy gates.
+- Added flagship strategy documentation explaining the product decision, competitive rationale, scoring model, and architecture boundaries.
+
+### Quality
+
+- Added focused diagnostics and CLI tests while preserving the 90% coverage gate.
+- Added the diagnostic command to the fixture GitHub Actions workflow.
+- Ruff, mypy, pytest, and wheel/sdist builds pass locally.
+
+[1.2.0]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.2.0
+
 ## [1.1.0] — Replay matrix
 
 ### Added

@@ -36,6 +36,7 @@ jobs:
           python-version: '3.12'
       - run: pip install .
       - run: faultpack verify fixtures/failure-pack
+      - run: faultpack diagnose fixtures/failure-pack --fail-on-findings
       - run: faultpack replay fixtures/failure-pack --report-dir fixtures/failure-report
       - run: faultpack matrix fixtures/failure-pack --profiles examples/profiles.json --report-dir fixtures/matrix-report
       - run: faultpack reduce fixtures/failure-pack --input fixtures/repro_input.txt --out fixtures/failure-reduced --max-runs 50
