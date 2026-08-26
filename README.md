@@ -32,6 +32,7 @@ The project is an evidence layer, not an observability platform. It complements 
 | **Replay matrix** | Run the same verified failure across ordered, bounded local profiles and aggregate reproducibility results. |
 | **Privacy preflight** | Passively scan declared evidence for common secret and PII indicators before sharing; suitable for CI gates. |
 | **Adapter-ready contract** | Language-neutral manifests let pytest, Jest, Go, and other producers share the same evidence layer. |
+| **Regression corpus catalog** | Passively inventory nested packs, verify every contract, run privacy preflight, and emit CI-ready JSON/Markdown without executing commands. |
 
 ## Evidence interchange in v1.3
 
@@ -78,13 +79,18 @@ faultpack inspect ./pack --html --output ./report/faultpack.html
 
 # Generate a safe GitHub issue body without embedding captured output
 faultpack issue ./pack --output ./report/issue.md --bundle-name failure.zip
+
+# Audit an entire regression corpus without executing any declared command
+faultpack catalog ./fixtures --output ./report/catalog.json --markdown ./report/catalog.md
 ```
 
 `diagnose` is passive: it verifies the manifest fingerprint and scans only declared textual evidence for token-like values, private keys, emails, and oversized files. It never executes the declared command, fetches URLs, follows symlinks, or uploads data. Use `--fail-on-findings` as a CI gate; it exits with `6` when review is required.
 
 `inspect --html` first verifies the pack, then writes a single self-contained HTML file with the execution contract, selected-file digests, producer metadata, and digest-first evidence timeline. The viewer has no external assets or JavaScript dependencies, never embeds captured stdout/stderr, and is safe to attach to a pull request as a passive review artifact.
 
-`issue` verifies the pack and runs the passive privacy preflight before generating a metadata-only GitHub issue body. It includes the fingerprint, command contract, input digests, evidence-event names, and maintainer checklist, but never copies captured stdout/stderr or matched secret values. Use `--fail-on-findings` in automation to prevent sharing until every finding is reviewed.
+`issue` verifies the pack and runs the passive privacy preflight before generating a metadata-only GitHub issue body. It includes the fingerprint, command contract, input digests, evidence-event names, and maintainer checklist, but never copies captured stdout/stderr or matched secret values. Use `--fail-on-findings` in automation to prevent sharing until every finding has been reviewed.
+
+`catalog` recursively discovers directories containing `faultpack.json`, verifies each pack, and runs the same passive privacy diagnostics. Results are sorted deterministically and include invalid-pack errors, fingerprints, observed statuses, and privacy cleanliness. It never executes commands, follows pack-provided URLs, or mutates the corpus. The command exits `4` when a pack is invalid and exits `6` when `--fail-on-findings` is used and a pack needs review.
 
 A non-zero child exit during capture is **valid failure evidence**, not a FaultPack crash. Replay exits with `0` when the pack's oracle matches and `5` when the replay is valid but does not match. Malformed, unsafe, tampered, or invalidly signed packs exit with `4`.
 
@@ -234,7 +240,7 @@ Behavior changes must include focused tests and a contract note. Fixtures must b
 
 ## Roadmap
 
-FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. FaultPack 1.3 adds producer metadata, digest-first evidence events, and offline semantic evidence diff. Future releases can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
+FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. FaultPack v1.3 adds producer metadata, digest-first evidence events, and offline semantic evidence diff. FaultPack v1.6 adds passive regression-corpus cataloging with deterministic JSON and Markdown output. Future releases can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
 
 ## License
 

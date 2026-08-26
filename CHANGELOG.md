@@ -2,6 +2,23 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.6.0] — Regression corpus catalog
+
+### Added
+
+- Added `faultpack catalog ROOT` to recursively inventory nested FaultPacks as a deterministic regression corpus.
+- Added passive verification and privacy preflight per pack, with JSON and Markdown outputs for CI and maintainer review.
+- Added explicit aggregate counts for verified, invalid, and privacy-clean packs, plus safe per-pack error messages.
+- Added contract tests for deterministic discovery, passive operation, valid/invalid mixtures, and Markdown rendering.
+
+### Safety and compatibility
+
+- Cataloging never executes declared commands, follows pack-provided URLs, loads plugins, or mutates the corpus.
+- Existing pack formats, commands, and exit semantics remain unchanged; only the package/CLI version advances to 1.6.0.
+- Pytest coverage remains above 90%, with Ruff and mypy passing locally.
+
+[1.6.0]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.6.0
+
 ## [1.4.0] — Offline evidence viewer
 
 ### Added

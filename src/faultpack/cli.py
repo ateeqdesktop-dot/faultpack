@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from .catalog import catalog_markdown, catalog_packs
 from .core import FaultPackError, verify_pack
 from .diagnostics import diagnose_pack
 from .diff import diff_observations, observe
@@ -19,7 +20,7 @@ from .replay import compare, replay
 from .report import html_report, junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -290,6 +291,35 @@ def issue(
         raise typer.Exit(4) from exc
     if findings and fail_on_findings:
         raise typer.Exit(6)
+
+
+@app.command("catalog")
+def catalog(
+    root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write JSON catalog")
+    ] = None,
+    markdown: Annotated[
+        Path | None, typer.Option("--markdown", help="Write Markdown catalog")
+    ] = None,
+    fail_on_findings: Annotated[
+        bool, typer.Option("--fail-on-findings", help="Exit 6 if any pack needs privacy review")
+    ] = False,
+) -> None:
+    """Inventory nested packs passively for regression-corpus and CI review."""
+    try:
+        payload = catalog_packs(root)
+        if output:
+            write_json(output, payload)
+        if markdown:
+            markdown.parent.mkdir(parents=True, exist_ok=True)
+            markdown.write_text(catalog_markdown(payload), encoding="utf-8")
+    except (FaultPackError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False))
+    if (not payload["all_verified"]) or (fail_on_findings and not payload["all_privacy_clean"]):
+        raise typer.Exit(6 if fail_on_findings and not payload["all_privacy_clean"] else 4)
 
 
 @app.command("bundle")
