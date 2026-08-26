@@ -2,6 +2,15 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.3.1] — Compatibility patch
+
+### Fixed
+
+- Preserved legacy v0.1/v0.2 manifest fingerprints when the parser materializes optional v0.3 producer and event fields.
+- Added a regression test covering enriched legacy manifests and verified the existing fixture workflow on GitHub Actions.
+
+[1.3.1]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.3.1
+
 ## [1.3.0] — Evidence interchange
 
 ### Added
