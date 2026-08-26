@@ -64,6 +64,18 @@ def _manifest(events: list[EvidenceEvent], producer: Producer | None = None) -> 
     return model.model_copy(update={"fingerprint": manifest_fingerprint(model)})
 
 
+def test_legacy_fingerprint_ignores_new_optional_fields() -> None:
+    raw = json.loads(Path("fixtures/failure-pack/faultpack.json").read_text(encoding="utf-8"))
+    legacy = Manifest.model_validate(raw)
+    enriched = legacy.model_copy(
+        update={
+            "producer": Producer(name="legacy-adapter"),
+            "events": [build_event(1, "annotation", "compatibility")],
+        }
+    )
+    assert manifest_fingerprint(legacy) == manifest_fingerprint(enriched)
+
+
 def test_evidence_diff_detects_producer_and_event_changes() -> None:
     left = _manifest([build_event(1, "assertion", "oracle")], Producer(name="pytest", version="8"))
     right = _manifest(

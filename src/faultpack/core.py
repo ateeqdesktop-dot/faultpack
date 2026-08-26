@@ -42,6 +42,9 @@ def canonical_json(value: Any) -> bytes:
 
 def manifest_fingerprint(manifest: Manifest) -> str:
     payload = manifest.model_dump(mode="json", exclude={"fingerprint", "created_at"})
+    if manifest.format_version in {"0.1", "0.2"}:
+        payload.pop("producer", None)
+        payload.pop("events", None)
     if manifest.format_version in {"0.2", "0.3"}:
         payload.pop("pack_id", None)
         payload.get("observed", {}).pop("duration_ms", None)
