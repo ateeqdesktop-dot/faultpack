@@ -30,6 +30,24 @@ class CommandSpec(BaseModel):
         return value
 
 
+class Producer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=128)
+    version: str | None = Field(default=None, max_length=64)
+    runtime: str | None = Field(default=None, max_length=128)
+
+
+class EvidenceEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sequence: int = Field(ge=1)
+    kind: Literal["tool_call", "model_response", "assertion", "policy_decision", "annotation"]
+    name: str = Field(min_length=1, max_length=128)
+    payload_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    attributes: dict[str, str] = Field(default_factory=dict)
+
+
 class Environment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -117,16 +135,26 @@ class MatrixResult(BaseModel):
 class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    format_version: Literal["0.1", "0.2"] = "0.2"
+    format_version: Literal["0.1", "0.2", "0.3"] = "0.2"
     pack_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     source: Source = Field(default_factory=Source)
+    producer: Producer | None = None
     command: CommandSpec
     environment: Environment
     input_files: list[FileEntry] = Field(default_factory=list)
     observed: Observed
     expectation: Expectation = Field(default_factory=Expectation)
+    events: list[EvidenceEvent] = Field(default_factory=list)
     fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("events")
+    @classmethod
+    def ordered_unique_events(cls, value: list[EvidenceEvent]) -> list[EvidenceEvent]:
+        sequences = [event.sequence for event in value]
+        if sequences != sorted(sequences) or len(sequences) != len(set(sequences)):
+            raise ValueError("events must have strictly increasing unique sequence values")
+        return value
 
     @property
     def canonical_created_at(self) -> str:

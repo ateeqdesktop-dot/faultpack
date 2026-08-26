@@ -33,6 +33,29 @@ The project is an evidence layer, not an observability platform. It complements 
 | **Privacy preflight** | Passively scan declared evidence for common secret and PII indicators before sharing; suitable for CI gates. |
 | **Adapter-ready contract** | Language-neutral manifests let pytest, Jest, Go, and other producers share the same evidence layer. |
 
+## Evidence interchange in v1.3
+
+FaultPack 1.3 adds an optional, digest-first evidence timeline for AI-agent and tool runs. Events record an ordered kind and name, while payloads are represented by SHA-256 digests by default; raw prompts, responses, and tool payloads are never stored implicitly.
+
+```python
+from faultpack.events import build_event, event_summary
+
+events = [
+    build_event(1, "tool_call", "search", {"query": "..."}),
+    build_event(2, "assertion", "regression-oracle"),
+]
+print(event_summary(events))
+```
+
+Use `evidence-diff` to compare two verified packs without executing either declared command. It reports stable changes in source, producer, command, inputs, expectations, and event summaries while ignoring volatile `pack_id`, `created_at`, and replay duration.
+
+```bash
+faultpack evidence-diff ./baseline-pack ./candidate-pack \
+  --output ./report/evidence-diff.json
+```
+
+This is intentionally an evidence layer, not a hosted observability dashboard. It complements OpenTelemetry, Langfuse, Phoenix, test runners, and CI by producing a small artifact that can be reviewed, signed, archived, and verified independently.
+
 ## Quick start
 
 ```bash
@@ -201,7 +224,7 @@ Behavior changes must include focused tests and a contract note. Fixtures must b
 
 ## Roadmap
 
-FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. Future releases can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
+FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. FaultPack 1.3 adds producer metadata, digest-first evidence events, and offline semantic evidence diff. Future releases can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
 
 ## License
 

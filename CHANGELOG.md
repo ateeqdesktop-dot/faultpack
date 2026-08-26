@@ -2,6 +2,24 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.3.0] — Evidence interchange
+
+### Added
+
+- Added optional `Producer` metadata for identifying the capture adapter without coupling the core verifier to a runtime.
+- Added digest-first `EvidenceEvent` timeline contracts for tool calls, model responses, assertions, policy decisions, and annotations.
+- Added `faultpack evidence-diff LEFT RIGHT` for offline semantic comparison without executing either declared command.
+- Added stable event summaries and explicit volatile-field exclusions for evidence comparisons.
+- Updated the public JSON Schema to support format `0.3` while preserving `0.1` and `0.2` parsing.
+
+### Quality and safety
+
+- Event sequences must be strictly increasing and unique; payloads are represented by SHA-256 digests by default.
+- Evidence diff verifies both packs before reading semantic fields and reports changes in machine-readable JSON.
+- Added contract, privacy, CLI, and backward-compatibility tests; pytest coverage remains above 90%, with Ruff, mypy, JSON validation, and wheel/sdist builds passing locally.
+
+[1.3.0]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.3.0
+
 ## [1.2.0] — Privacy preflight
 
 ### Added

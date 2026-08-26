@@ -42,7 +42,7 @@ def canonical_json(value: Any) -> bytes:
 
 def manifest_fingerprint(manifest: Manifest) -> str:
     payload = manifest.model_dump(mode="json", exclude={"fingerprint", "created_at"})
-    if manifest.format_version == "0.2":
+    if manifest.format_version in {"0.2", "0.3"}:
         payload.pop("pack_id", None)
         payload.get("observed", {}).pop("duration_ms", None)
     return sha256_bytes(canonical_json(payload))

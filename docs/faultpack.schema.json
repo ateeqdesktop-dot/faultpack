@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["format_version", "pack_id", "created_at", "source", "command", "environment", "input_files", "observed", "expectation", "fingerprint"],
   "properties": {
-    "format_version": {"type": "string", "enum": ["0.1", "0.2"]},
+    "format_version": {"type": "string", "enum": ["0.1", "0.2", "0.3"]},
     "pack_id": {"type": "string", "minLength": 1},
     "created_at": {"type": "string", "format": "date-time"},
     "source": {
@@ -15,6 +15,14 @@
         "repository": {"type": ["string", "null"]},
         "commit": {"type": ["string", "null"]},
         "branch": {"type": ["string", "null"]}
+      }
+    },
+    "producer": {
+      "type": ["object", "null"], "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "version": {"type": ["string", "null"], "maxLength": 64},
+        "runtime": {"type": ["string", "null"], "maxLength": 128}
       }
     },
     "command": {
@@ -69,6 +77,20 @@
         "stdout_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
         "stderr_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
         "duration_max_ms": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sequence", "kind", "name"],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1},
+          "kind": {"type": "string", "enum": ["tool_call", "model_response", "assertion", "policy_decision", "annotation"]},
+          "name": {"type": "string", "minLength": 1, "maxLength": 128},
+          "payload_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "attributes": {"type": "object", "additionalProperties": {"type": "string"}}
+        }
       }
     },
     "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}

@@ -9,6 +9,7 @@ import typer
 from .core import FaultPackError, verify_pack
 from .diagnostics import diagnose_pack
 from .diff import diff_observations, observe
+from .evidence_diff import evidence_diff
 from .matrix import run_matrix, write_matrix_reports
 from .models import MatrixProfile
 from .pack import capture_pack, write_zip
@@ -17,7 +18,7 @@ from .replay import compare, replay
 from .report import junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -192,6 +193,26 @@ def diff(
         write_json(output, result)
     typer.echo(json.dumps(result, ensure_ascii=False))
     raise typer.Exit(0 if result["identical_behavior"] else 5)
+
+
+@app.command("evidence-diff")
+def evidence_diff_cmd(
+    left: Annotated[Path, typer.Argument(exists=True)],
+    right: Annotated[Path, typer.Argument(exists=True)],
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+) -> None:
+    """Compare two verified manifests without executing their commands."""
+    try:
+        left_manifest = verify_pack(left)
+        right_manifest = verify_pack(right)
+        result = evidence_diff(left_manifest, right_manifest)
+    except (FaultPackError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    if output:
+        write_json(output, result)
+    typer.echo(json.dumps(result, ensure_ascii=False))
+    raise typer.Exit(0 if result["identical_evidence"] else 5)
 
 
 @app.command("matrix")
