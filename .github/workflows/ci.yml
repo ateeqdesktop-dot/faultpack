@@ -39,6 +39,7 @@ jobs:
       - run: faultpack diagnose fixtures/failure-pack --fail-on-findings
       - run: faultpack replay fixtures/failure-pack --report-dir fixtures/failure-report
       - run: faultpack matrix fixtures/failure-pack --profiles examples/profiles.json --report-dir fixtures/matrix-report
+      - run: faultpack catalog fixtures --output fixtures/catalog.json --markdown fixtures/catalog.md
       - run: faultpack reduce fixtures/failure-pack --input fixtures/repro_input.txt --out fixtures/failure-reduced --max-runs 50
       - run: faultpack verify fixtures/failure-reduced
       - uses: actions/upload-artifact@v4
@@ -48,6 +49,8 @@ jobs:
           path: |
             fixtures/failure-report/
             fixtures/matrix-report/
+            fixtures/catalog.json
+            fixtures/catalog.md
             fixtures/failure-reduced/
 
   smoke:
