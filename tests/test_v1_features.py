@@ -116,3 +116,89 @@ def test_html_inspection_rejects_tampered_pack(tmp_path: Path) -> None:
     )
     assert result.exit_code == 4
     assert not (tmp_path / "bad.html").exists()
+
+
+def test_issue_command_is_metadata_only_and_reproducible(tmp_path: Path) -> None:
+    runner = CliRunner()
+    pack = _capture(tmp_path, [sys.executable, "-c", "print('safe')"], "issue-pack")
+    output = tmp_path / "issue.md"
+    result = runner.invoke(
+        app,
+        ["issue", str(pack), "--output", str(output), "--bundle-name", "failure.zip"],
+    )
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["finding_count"] == 0
+    body = output.read_text(encoding="utf-8")
+    assert "Failure reproduction report" in body
+    assert "failure.zip" in body
+    assert "secret-like-token" not in body
+    assert "stdout" not in body.lower() or "captured stdout/stderr" in body
+    assert "faultpack verify" in body
+
+
+def test_issue_command_surfaces_privacy_findings_without_values(tmp_path: Path) -> None:
+    runner = CliRunner()
+    pack = _capture(tmp_path, [sys.executable, "-c", "print('safe')"], "privacy-issue")
+    stdout = pack / "artifacts" / "stdout.txt"
+    stdout.write_text("Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456\n", encoding="utf-8")
+    from faultpack.core import load_manifest, manifest_fingerprint
+
+    loaded = load_manifest(pack / "faultpack.json")
+    loaded.observed.stdout_sha256 = __import__("hashlib").sha256(stdout.read_bytes()).hexdigest()
+    loaded.fingerprint = manifest_fingerprint(loaded)
+    (pack / "faultpack.json").write_text(
+        __import__("json").dumps(loaded.model_dump(mode="json"), separators=(",", ":")),
+        encoding="utf-8",
+    )
+    result = runner.invoke(app, ["issue", str(pack), "--fail-on-findings"])
+    assert result.exit_code == 6
+    assert "bearer-token" in result.stdout
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in result.stdout
+
+
+def test_issue_body_includes_contract_metadata_and_findings() -> None:
+    from faultpack.diagnostics import Finding
+    from faultpack.issue import build_issue_body
+    from faultpack.models import (
+        CommandSpec,
+        Environment,
+        EvidenceEvent,
+        Expectation,
+        FileEntry,
+        Manifest,
+        Observed,
+        Producer,
+        Source,
+    )
+
+    manifest = Manifest(
+        source=Source(repository="https://github.com/example/demo", commit="abc123", branch="main"),
+        producer=Producer(name="pytest", version="8.3", runtime="python3.12"),
+        command=CommandSpec(argv=["python", "-m", "demo"], cwd="src"),
+        environment=Environment(os="Linux", platform="x", python="3.12"),
+        input_files=[FileEntry(path="fixtures/case.txt", sha256="a" * 64)],
+        events=[EvidenceEvent(sequence=1, kind="assertion", name="regression")],
+        expectation=Expectation(stdout_regex="required"),
+        observed=Observed(
+            status="passed",
+            exit_code=0,
+            duration_ms=1,
+            stdout_sha256="0" * 64,
+            stderr_sha256="0" * 64,
+        ),
+        pack_id="issue-test",
+    )
+    body = build_issue_body(
+        manifest,
+        [Finding("email-address", "info", "artifacts/stdout.txt", 4, "Email address detected")],
+        bundle_name="case.zip",
+    )
+    assert "https://github.com/example/demo" in body
+    assert "pytest 8.3 (python3.12)" in body
+    assert "cd src" in body
+    assert "fixtures/case.txt" in body
+    assert "regression" in body
+    assert "email-address" in body
+    assert "line 4" in body
+    assert "case.zip" in body
+    assert "output patterns" in body

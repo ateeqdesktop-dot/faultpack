@@ -10,6 +10,7 @@ from .core import FaultPackError, verify_pack
 from .diagnostics import diagnose_pack
 from .diff import diff_observations, observe
 from .evidence_diff import evidence_diff
+from .issue import build_issue_body
 from .matrix import run_matrix, write_matrix_reports
 from .models import MatrixProfile
 from .pack import capture_pack, write_zip
@@ -18,7 +19,7 @@ from .replay import compare, replay
 from .report import html_report, junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -257,6 +258,38 @@ def matrix(
         raise typer.Exit(4) from exc
     typer.echo(json.dumps(payload, ensure_ascii=False))
     raise typer.Exit(0 if payload["all_reproduced"] else 5)
+
+
+@app.command("issue")
+def issue(
+    pack: Annotated[Path, typer.Argument(exists=True)],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write a GitHub issue body to a file")
+    ] = None,
+    bundle_name: Annotated[
+        str | None, typer.Option("--bundle-name", help="Suggested attachment name")
+    ] = None,
+    fail_on_findings: Annotated[
+        bool, typer.Option("--fail-on-findings", help="Exit 6 when privacy review is required")
+    ] = False,
+) -> None:
+    """Generate a safe, metadata-only GitHub issue body from a verified pack."""
+    try:
+        manifest = verify_pack(pack)
+        findings = diagnose_pack(pack)
+        body = build_issue_body(manifest, findings, bundle_name=bundle_name)
+        if output:
+            output.write_text(body, encoding="utf-8")
+            typer.echo(
+                json.dumps({"issue": str(output), "verified": True, "finding_count": len(findings)})
+            )
+        else:
+            typer.echo(body, nl=False)
+    except (FaultPackError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    if findings and fail_on_findings:
+        raise typer.Exit(6)
 
 
 @app.command("bundle")

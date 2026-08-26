@@ -35,7 +35,7 @@ The project is an evidence layer, not an observability platform. It complements 
 
 ## Evidence interchange in v1.3
 
-FaultPack 1.4 adds a verified, dependency-free offline HTML evidence viewer. FaultPack 1.3 adds an optional, digest-first evidence timeline for AI-agent and tool runs. Events record an ordered kind and name, while payloads are represented by SHA-256 digests by default; raw prompts, responses, and tool payloads are never stored implicitly.
+FaultPack 1.5 adds a verified, privacy-aware GitHub issue body generator; FaultPack 1.4 adds a verified, dependency-free offline HTML evidence viewer. FaultPack 1.3 adds an optional, digest-first evidence timeline for AI-agent and tool runs. Events record an ordered kind and name, while payloads are represented by SHA-256 digests by default; raw prompts, responses, and tool payloads are never stored implicitly.
 
 ```python
 from faultpack.events import build_event, event_summary
@@ -75,11 +75,16 @@ faultpack replay ./pack --report-dir ./report
 
 # Generate a verified, dependency-free offline report for a PR artifact.
 faultpack inspect ./pack --html --output ./report/faultpack.html
+
+# Generate a safe GitHub issue body without embedding captured output
+faultpack issue ./pack --output ./report/issue.md --bundle-name failure.zip
 ```
 
 `diagnose` is passive: it verifies the manifest fingerprint and scans only declared textual evidence for token-like values, private keys, emails, and oversized files. It never executes the declared command, fetches URLs, follows symlinks, or uploads data. Use `--fail-on-findings` as a CI gate; it exits with `6` when review is required.
 
 `inspect --html` first verifies the pack, then writes a single self-contained HTML file with the execution contract, selected-file digests, producer metadata, and digest-first evidence timeline. The viewer has no external assets or JavaScript dependencies, never embeds captured stdout/stderr, and is safe to attach to a pull request as a passive review artifact.
+
+`issue` verifies the pack and runs the passive privacy preflight before generating a metadata-only GitHub issue body. It includes the fingerprint, command contract, input digests, evidence-event names, and maintainer checklist, but never copies captured stdout/stderr or matched secret values. Use `--fail-on-findings` in automation to prevent sharing until every finding is reviewed.
 
 A non-zero child exit during capture is **valid failure evidence**, not a FaultPack crash. Replay exits with `0` when the pack's oracle matches and `5` when the replay is valid but does not match. Malformed, unsafe, tampered, or invalidly signed packs exit with `4`.
 

@@ -32,7 +32,7 @@ The existing MVP captures explicit inputs and an allowlisted environment, redact
 
 ### This delivery
 
-This delivery adds a **self-contained offline HTML evidence viewer** through `faultpack inspect --html --output report.html`. The viewer is generated only after passive verification, contains no external scripts or fonts, escapes all manifest-derived text, surfaces the execution contract and evidence timeline, and explicitly states the replay security boundary. It is useful in pull-request artifacts and incident handoffs without introducing a server, database, telemetry, or runtime dependency.
+This delivery adds two passive sharing surfaces. `faultpack inspect --html --output report.html` produces a self-contained offline HTML evidence viewer. `faultpack issue --output issue.md` produces a metadata-only GitHub issue body after verification and privacy preflight. Both surfaces contain no external scripts or fonts, escape manifest-derived text, avoid captured stdout/stderr, surface the execution contract and evidence timeline, and state the replay security boundary. They are useful in pull-request artifacts and incident handoffs without introducing a server, database, telemetry, or runtime dependency.
 
 ### Advanced features
 
@@ -62,7 +62,7 @@ The viewer is a pure presentation function over a verified `Manifest`. It has no
 
 ## Verification plan
 
-The acceptance bar is: all existing tests pass; the HTML command refuses a tampered pack; raw HTML is never emitted from manifest values; the output is readable without network access; `ruff`, `mypy`, and package builds pass; and the README explains the feature with a copy-pasteable command.
+The acceptance bar is: all tests pass; the HTML and Issue commands refuse a tampered pack; raw HTML and captured evidence values are never emitted from manifest values; outputs are readable without network access; `ruff`, `mypy`, and package builds pass; and the README explains both features with copy-pasteable commands.
 
 ## References
 
