@@ -85,3 +85,34 @@ def test_cli_diff_non_matching_result_uses_replay_exit_code(tmp_path: Path) -> N
     result = runner.invoke(app, ["diff", str(left), str(right)])
     assert result.exit_code == 5
     assert json.loads(result.stdout)["identical_behavior"] is False
+
+
+def test_html_inspection_is_verified_and_self_contained(tmp_path: Path) -> None:
+    runner = CliRunner()
+    pack = _capture(tmp_path, [sys.executable, "-c", "print('<unsafe>')"], "html-pack")
+    output = tmp_path / "report.html"
+    result = runner.invoke(app, ["inspect", str(pack), "--html", "--output", str(output)])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["verified"] is True
+    rendered = output.read_text(encoding="utf-8")
+    assert "<!doctype html>" in rendered
+    assert "FaultPack evidence capsule" in rendered
+    assert "&#x27;&lt;unsafe&gt;&#x27;" in rendered  # argv is escaped, not executed
+    assert "<unsafe>" not in rendered  # raw HTML never appears in the report
+    assert "Replay remains an explicit" in rendered
+
+
+def test_html_inspection_rejects_tampered_pack(tmp_path: Path) -> None:
+    runner = CliRunner()
+    pack = _capture(tmp_path, [sys.executable, "-c", "print('ok')"], "tampered")
+    manifest_path = pack / "faultpack.json"
+    manifest_path.write_text(
+        manifest_path.read_text(encoding="utf-8").replace('"status":"passed"', '"status":"failed"'),
+        encoding="utf-8",
+    )
+    result = runner.invoke(
+        app,
+        ["inspect", str(pack), "--html", "--output", str(tmp_path / "bad.html")],
+    )
+    assert result.exit_code == 4
+    assert not (tmp_path / "bad.html").exists()

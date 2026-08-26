@@ -2,6 +2,23 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.4.0] — Offline evidence viewer
+
+### Added
+
+- Added `faultpack inspect PACK --html --output report.html` for a self-contained, dependency-free evidence report.
+- The viewer displays the verified execution contract, source and producer metadata, selected input digests, and digest-first evidence timeline.
+- Added a decision record documenting the flagship choice, competitive gap, scoring matrix, architecture, scope, and acceptance bar.
+
+### Quality and safety
+
+- HTML inspection verifies the pack before rendering and refuses tampered manifests.
+- Manifest-derived values are HTML-escaped; captured stdout/stderr are never embedded by passive inspection.
+- The report has no network requests, external assets, JavaScript dependencies, subprocess execution, or implicit uploads.
+- Added focused CLI tests for verified rendering, safe escaping, and tamper rejection. Pytest coverage remains above 90%, with Ruff, mypy, and wheel/sdist builds passing locally.
+
+[1.4.0]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.4.0
+
 ## [1.3.1] — Compatibility patch
 
 ### Fixed

@@ -35,7 +35,7 @@ The project is an evidence layer, not an observability platform. It complements 
 
 ## Evidence interchange in v1.3
 
-FaultPack 1.3 adds an optional, digest-first evidence timeline for AI-agent and tool runs. Events record an ordered kind and name, while payloads are represented by SHA-256 digests by default; raw prompts, responses, and tool payloads are never stored implicitly.
+FaultPack 1.4 adds a verified, dependency-free offline HTML evidence viewer. FaultPack 1.3 adds an optional, digest-first evidence timeline for AI-agent and tool runs. Events record an ordered kind and name, while payloads are represented by SHA-256 digests by default; raw prompts, responses, and tool payloads are never stored implicitly.
 
 ```python
 from faultpack.events import build_event, event_summary
@@ -72,9 +72,14 @@ faultpack capture --out ./pack \
 faultpack verify ./pack
 faultpack diagnose ./pack --fail-on-findings
 faultpack replay ./pack --report-dir ./report
+
+# Generate a verified, dependency-free offline report for a PR artifact.
+faultpack inspect ./pack --html --output ./report/faultpack.html
 ```
 
 `diagnose` is passive: it verifies the manifest fingerprint and scans only declared textual evidence for token-like values, private keys, emails, and oversized files. It never executes the declared command, fetches URLs, follows symlinks, or uploads data. Use `--fail-on-findings` as a CI gate; it exits with `6` when review is required.
+
+`inspect --html` first verifies the pack, then writes a single self-contained HTML file with the execution contract, selected-file digests, producer metadata, and digest-first evidence timeline. The viewer has no external assets or JavaScript dependencies, never embeds captured stdout/stderr, and is safe to attach to a pull request as a passive review artifact.
 
 A non-zero child exit during capture is **valid failure evidence**, not a FaultPack crash. Replay exits with `0` when the pack's oracle matches and `5` when the replay is valid but does not match. Malformed, unsafe, tampered, or invalidly signed packs exit with `4`.
 
@@ -208,7 +213,7 @@ CLI / GitHub Action
 
 The domain layer is independent from Typer. `models.py` owns the schema contract, `core.py` owns canonicalization and verification, `pack.py` owns capture and deterministic packaging, `replay.py` owns execution and oracle comparison, `diff.py` owns behavioral comparison, `reducer.py` owns bounded minimization, `report.py` owns output formats, and `signing.py` owns optional Ed25519 interoperability.
 
-See [`docs/flagship-strategy.md`](docs/flagship-strategy.md) for the product decision and competitive rationale. See [`docs/v1-design.md`](docs/v1-design.md) for the original product contract, and [`docs/architecture-v1.1.md`](docs/architecture-v1.1.md) for the matrix architecture, security model, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
+See [`docs/flagship-strategy.md`](docs/flagship-strategy.md) for the product decision and competitive rationale. See [`docs/decision-record.md`](docs/decision-record.md) for the flagship selection, competitive gap, scoring matrix, and 1.4 architecture decision. See [`docs/v1-design.md`](docs/v1-design.md) for the original product contract, and [`docs/architecture-v1.1.md`](docs/architecture-v1.1.md) for the matrix architecture, security model, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
 
 ## Development
 

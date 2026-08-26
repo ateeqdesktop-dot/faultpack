@@ -15,10 +15,10 @@ from .models import MatrixProfile
 from .pack import capture_pack, write_zip
 from .reducer import reduce_text_input
 from .replay import compare, replay
-from .report import junit_report, markdown_report, sarif_report, write_json
+from .report import html_report, junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -76,13 +76,30 @@ def capture(
 
 
 @app.command()
-def inspect(pack: Annotated[Path, typer.Argument(exists=True)]) -> None:
-    """Print a pack manifest without executing its command."""
+def inspect(
+    pack: Annotated[Path, typer.Argument(exists=True)],
+    html: Annotated[
+        bool, typer.Option("--html", help="Render a self-contained offline HTML report")
+    ] = False,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write HTML to a file")
+    ] = None,
+) -> None:
+    """Inspect a pack passively, optionally rendering a verified offline HTML report."""
     try:
-        typer.echo((pack / "faultpack.json").read_text(encoding="utf-8"))
-    except OSError as exc:
+        if html:
+            manifest = verify_pack(pack)
+            rendered = html_report(manifest)
+            if output:
+                output.write_text(rendered, encoding="utf-8")
+                typer.echo(json.dumps({"html": str(output), "verified": True}))
+            else:
+                typer.echo(rendered, nl=False)
+        else:
+            typer.echo((pack / "faultpack.json").read_text(encoding="utf-8"))
+    except (FaultPackError, OSError) as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(3) from exc
+        raise typer.Exit(4 if html else 3) from exc
 
 
 @app.command()
