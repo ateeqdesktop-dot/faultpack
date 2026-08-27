@@ -42,6 +42,11 @@ jobs:
       - run: faultpack catalog fixtures --output fixtures/catalog.json --markdown fixtures/catalog.md
       - run: faultpack reduce fixtures/failure-pack --input fixtures/repro_input.txt --out fixtures/failure-reduced --max-runs 50
       - run: faultpack verify fixtures/failure-reduced
+      - run: mkdir -p fixtures/interop-report
+      - run: faultpack interop examples/evidence/agent-trace.jsonl --format generic-jsonl --output fixtures/interop-bundle.json --report-dir fixtures/interop-report
+      - run: faultpack interop-verify fixtures/interop-bundle.json
+      - run: faultpack interop examples/evidence/openinference-otlp.json --format openinference-otlp-json --output fixtures/interop-otlp-bundle.json --report-dir fixtures/interop-otlp-report
+      - run: faultpack interop-verify fixtures/interop-otlp-bundle.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -52,6 +57,10 @@ jobs:
             fixtures/catalog.json
             fixtures/catalog.md
             fixtures/failure-reduced/
+            fixtures/interop-report/
+            fixtures/interop-otlp-report/
+            fixtures/interop-bundle.json
+            fixtures/interop-otlp-bundle.json
 
   smoke:
     runs-on: ubuntu-latest

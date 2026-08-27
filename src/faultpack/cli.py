@@ -11,6 +11,15 @@ from .core import FaultPackError, verify_pack
 from .diagnostics import diagnose_pack
 from .diff import diff_observations, observe
 from .evidence_diff import evidence_diff
+from .interop import (
+    InteropError,
+    bundle_result,
+    diff_bundles,
+    load_bundle,
+    normalize_file,
+    write_bundle,
+    write_reports,
+)
 from .issue import build_issue_body
 from .matrix import run_matrix, write_matrix_reports
 from .models import MatrixProfile
@@ -20,7 +29,7 @@ from .replay import compare, replay
 from .report import html_report, junit_report, markdown_report, sarif_report, write_json
 from .signing import generate_keypair
 
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -366,6 +375,72 @@ def reduce(
         typer.echo(str(exc), err=True)
         raise typer.Exit(4) from exc
     typer.echo(json.dumps({"pack": str(out), "fingerprint": manifest.fingerprint, "runs": runs}))
+
+
+@app.command("interop")
+def interop(
+    source: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Canonical evidence bundle JSON")],
+    source_format: Annotated[
+        str,
+        typer.Option(
+            "--format", help="auto, generic-jsonl, mcp-jsonl, ci-jsonl, or openinference-otlp-json"
+        ),
+    ] = "auto",
+    report_dir: Annotated[
+        Path | None, typer.Option("--report-dir", help="Write JSON/SARIF/JUnit/Markdown reports")
+    ] = None,
+    redact_pattern: Annotated[list[str] | None, typer.Option("--redact-pattern")] = None,
+) -> None:
+    """Normalize external agent, MCP, OTLP, or CI evidence into a verified bundle."""
+    try:
+        bundle = normalize_file(source, source_format, redact_pattern or [])
+        write_bundle(output, bundle)
+        if report_dir:
+            write_reports(report_dir, bundle)
+    except (InteropError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    typer.echo(json.dumps({"bundle": str(output), **bundle_result(bundle)}, ensure_ascii=False))
+    if bundle.has_errors:
+        raise typer.Exit(4)
+
+
+@app.command("interop-verify")
+def interop_verify(
+    bundle: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    report_dir: Annotated[Path | None, typer.Option("--report-dir")] = None,
+    fail_on_findings: Annotated[bool, typer.Option("--fail-on-findings")] = False,
+) -> None:
+    """Verify a canonical evidence bundle without executing or uploading anything."""
+    try:
+        parsed = load_bundle(bundle)
+        if report_dir:
+            write_reports(report_dir, parsed)
+    except (InteropError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    typer.echo(json.dumps({"bundle": str(bundle), **bundle_result(parsed)}, ensure_ascii=False))
+    if fail_on_findings and parsed.findings:
+        raise typer.Exit(6)
+
+
+@app.command("interop-diff")
+def interop_diff(
+    left: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    right: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+) -> None:
+    """Compare two verified canonical evidence bundles without executing them."""
+    try:
+        result = diff_bundles(load_bundle(left), load_bundle(right))
+    except (InteropError, OSError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(4) from exc
+    if output:
+        write_json(output, result)
+    typer.echo(json.dumps(result, ensure_ascii=False))
+    raise typer.Exit(0 if result["identical"] else 5)
 
 
 @app.command("version")

@@ -1,0 +1,29 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "service.name", "value": {"stringValue": "demo-agent"}}
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "trace-demo-1",
+              "spanId": "span-model-1",
+              "name": "classify_request",
+              "startTimeUnixNano": "1000000000",
+              "endTimeUnixNano": "1018000000",
+              "attributes": [
+                {"key": "openinference.span.kind", "value": {"stringValue": "LLM"}},
+                {"key": "gen_ai.request.model", "value": {"stringValue": "demo-model"}}
+              ],
+              "status": {"code": "STATUS_CODE_OK"}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

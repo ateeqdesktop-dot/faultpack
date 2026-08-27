@@ -23,6 +23,18 @@ inputs:
     description: Optional JSON array of replay matrix profiles
     required: false
     default: ''
+  interop-input:
+    description: Optional agent, MCP, CI, or OpenInference/OTLP evidence file to normalize
+    required: false
+    default: ''
+  interop-format:
+    description: Evidence format or auto
+    required: false
+    default: auto
+  interop-report-dir:
+    description: Directory for interoperability reports
+    required: false
+    default: faultpack-interop-report
 runs:
   using: composite
   steps:
@@ -34,6 +46,15 @@ runs:
         else
           python -m pip install "$GITHUB_ACTION_PATH"
         fi
+    - name: Normalize external evidence (if configured)
+      if: inputs.interop-input != ''
+      shell: bash
+      run: |
+        faultpack interop "${{ inputs.interop-input }}" \
+          --format "${{ inputs.interop-format }}" \
+          --output "${{ inputs.interop-report-dir }}/faultpack-evidence.json" \
+          --report-dir "${{ inputs.interop-report-dir }}"
+
     - name: Verify pack integrity
       shell: bash
       run: |
@@ -60,4 +81,6 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: faultpack-report
-        path: ${{ inputs.report-dir }}/
+        path: |
+          ${{ inputs.report-dir }}/
+          ${{ inputs.interop-report-dir }}/

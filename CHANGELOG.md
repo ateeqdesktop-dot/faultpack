@@ -2,6 +2,24 @@
 
 All notable changes to FaultPack are documented here.
 
+## [1.7.0] — Evidence interoperability layer
+
+### Added
+
+- Added `faultpack interop` to normalize generic agent/CI JSONL, MCP JSONL, and the documented OpenInference/OTLP JSON subset into a canonical `faultpack-evidence` bundle.
+- Added deterministic bundle digests, bounded/redacted attributes, payload digests, source adapter metadata, stable event taxonomy, and explainable conformance findings.
+- Added `faultpack interop-verify` and `faultpack interop-diff` for passive verification and comparison without executing commands, contacting providers, or uploading telemetry.
+- Added JSON, Markdown, SARIF 2.1.0, and JUnit reports plus optional composite Action integration through `interop-input`.
+- Added fixtures and contract tests for OTLP, MCP, CI, redaction, limits, tampering, reports, and CLI exit semantics.
+
+### Safety and compatibility
+
+- Imported payloads and tool arguments are represented by SHA-256 digests; sensitive attribute names are redacted before persistence; files and lines are bounded.
+- The bridge is intentionally complementary to OpenTelemetry, OpenInference, Langfuse, Phoenix, in-toto, and runtime governance tools. It is not a hosted observability backend or a claim that telemetry proves an external outcome.
+- Existing FaultPack capture, verification, replay, catalog, and reduction commands remain compatible. Pytest coverage remains above 90%, with Ruff and mypy passing locally.
+
+[1.7.0]: https://github.com/ateeqdesktop-dot/faultpack/releases/tag/v1.7.0
+
 ## [1.6.0] — Regression corpus catalog
 
 ### Added

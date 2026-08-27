@@ -183,6 +183,26 @@ jobs:
 
 The action verifies before replaying and uploads Markdown, SARIF, and JUnit artifacts. For Ed25519 verification, provide a public key path through `public-key` and install the signing extra in the calling workflow. Pin the action to a release tag or commit in production rather than tracking `main`.
 
+## Evidence interoperability
+
+FaultPack 1.7 adds an offline bridge for importing bounded, privacy-aware evidence from agent, MCP, CI, and OpenTelemetry/OpenInference exports. The bridge produces a canonical `faultpack-evidence` bundle that is independently verifiable, diffable, and suitable for pull requests or CI. It complements OpenTelemetry, OpenInference, Langfuse, Phoenix, and runtime governance tools; it does not replace them or require a hosted account.
+
+```bash
+# Normalize a generic agent/CI JSONL trace without executing any command.
+faultpack interop examples/evidence/agent-trace.jsonl \
+  --output evidence.json \
+  --format generic-jsonl \
+  --report-dir evidence-report
+
+# Verify the canonical digest and conformance contract offline.
+faultpack interop-verify evidence.json --report-dir evidence-report
+
+# Compare two normalized evidence bundles without replaying either one.
+faultpack interop-diff baseline.json candidate.json --output evidence-diff.json
+```
+
+Supported adapters are `generic-jsonl`, `mcp-jsonl`, `ci-jsonl`, and the documented `openinference-otlp-json` subset. Imported payloads become SHA-256 digests; attributes are bounded and redacted; commands, URLs, tool arguments, and model calls are never executed, fetched, or uploaded. See [`docs/interop-design.md`](docs/interop-design.md) for the canonical contract, conformance rules, threat model, and roadmap, and [`docs/faultpack-evidence.schema.json`](docs/faultpack-evidence.schema.json) for the generated machine-readable schema.
+
 ## Pack format
 
 ```text
@@ -220,9 +240,11 @@ CLI / GitHub Action
         +--> Reducer ---------------------------------+
         |
         +--> Differential comparer --> JSON / Markdown / SARIF / JUnit
+        |
+        +--> Interop adapters --> canonical evidence bundle --> verify / diff / CI reports
 ```
 
-The domain layer is independent from Typer. `models.py` owns the schema contract, `core.py` owns canonicalization and verification, `pack.py` owns capture and deterministic packaging, `replay.py` owns execution and oracle comparison, `diff.py` owns behavioral comparison, `reducer.py` owns bounded minimization, `report.py` owns output formats, and `signing.py` owns optional Ed25519 interoperability.
+The domain layer is independent from Typer. `models.py` owns the schema contract, `core.py` owns canonicalization and verification, `pack.py` owns capture and deterministic packaging, `replay.py` owns execution and oracle comparison, `diff.py` owns behavioral comparison, `reducer.py` owns bounded minimization, `interop.py` owns passive cross-ecosystem normalization and conformance, `report.py` owns output formats, and `signing.py` owns optional Ed25519 interoperability.
 
 See [`docs/flagship-strategy.md`](docs/flagship-strategy.md) for the product decision and competitive rationale. See [`docs/decision-record.md`](docs/decision-record.md) for the flagship selection, competitive gap, scoring matrix, and 1.4 architecture decision. See [`docs/v1-design.md`](docs/v1-design.md) for the original product contract, and [`docs/architecture-v1.1.md`](docs/architecture-v1.1.md) for the matrix architecture, security model, and release boundaries. See [`docs/architecture.md`](docs/architecture.md) for the v0.2 compatibility notes.
 
@@ -240,7 +262,7 @@ Behavior changes must include focused tests and a contract note. Fixtures must b
 
 ## Roadmap
 
-FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. FaultPack v1.3 adds producer metadata, digest-first evidence events, and offline semantic evidence diff. FaultPack v1.6 adds passive regression-corpus cataloging with deterministic JSON and Markdown output. Future releases can add pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
+FaultPack v1.0 provides the complete local evidence workflow. FaultPack 1.1 adds replay matrices and the stable adapter-facing contract. FaultPack 1.2 adds privacy preflight diagnostics for safe sharing and CI gating. FaultPack v1.3 adds producer metadata, digest-first evidence events, and offline semantic evidence diff. FaultPack v1.6 adds passive regression-corpus cataloging with deterministic JSON and Markdown output. FaultPack v1.7 adds the passive Evidence Interoperability Layer for generic agent/CI JSONL, MCP JSONL, and OpenInference/OTLP JSON. Future releases can add protobuf ingestion, DSSE/in-toto attestations, pytest/Jest/Go producer adapters, OCI/Podman backends, and verified reproducible-build metadata. Later releases may add a static report viewer and an opt-in anonymized corpus. A hosted multi-tenant dashboard and autonomous repair remain deliberately out of scope.
 
 ## License
 

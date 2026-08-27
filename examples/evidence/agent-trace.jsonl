@@ -1,0 +1,4 @@
+{"producer":"demo-agent","kind":"agent","name":"support_turn","trace_id":"trace-demo-1","span_id":"span-agent-1","status":"passed","attributes":{"framework":"example","environment":"fixture"}}
+{"producer":"demo-agent","kind":"model","name":"classify_request","trace_id":"trace-demo-1","span_id":"span-model-1","parent_id":"span-agent-1","status":"passed","duration_ms":18,"attributes":{"model":"demo-model"},"payload":{"input":"redacted fixture question"}}
+{"producer":"demo-agent","kind":"tool_call","name":"lookup_ticket","trace_id":"trace-demo-1","span_id":"span-tool-1","parent_id":"span-agent-1","status":"passed","duration_ms":7,"attributes":{"ticket_id":"fixture-42"},"payload":{"ticket_id":"fixture-42"}}
+{"producer":"demo-agent","kind":"tool_result","name":"lookup_ticket.result","trace_id":"trace-demo-1","span_id":"span-result-1","parent_id":"span-tool-1","status":"passed","attributes":{"result_shape":"object"},"payload":{"status":"open"}}
